@@ -31,6 +31,11 @@
         gap:30px;margin-top:40px;
     }
     
+    .cards-grid.article-grid{
+        grid-template-columns:1fr;
+        max-width:600px;margin:40px auto;
+    }
+    
     @media (max-width: 768px) {
         .cards-grid{
             grid-template-columns:1fr;
@@ -160,9 +165,27 @@
         </a>
     </div>
 
+    <div class="cards-grid article-grid">
+        <a href="article.html" class="card">
+            <div class="card-icon">📖</div>
+            <h2>Article Complet</h2>
+            <span class="badge badge-schema">Article</span>
+            <p>Article détaillé expliquant les réseaux de neurones récurrents : des RNN simples aux LSTM. Comprendre le fonctionnement interne et démythifier leur aspect "boîte noire".</p>
+            <ul class="card-features">
+                <li>Anatomie du RNN</li>
+                <li>Limites des RNN simples</li>
+                <li>Le LSTM : un RNN amélioré</li>
+                <li>Modèles d'attention</li>
+            </ul>
+        </a>
+    </div>
+
     <div class="footer">
         <p>Neural Networks Visualizations — RNN & LSTM Interactive Demos</p>
         <p style="margin-top:10px;font-size:14px;">Explorez chaque visualisation pour comprendre le fonctionnement des réseaux récurrents</p>
+        <p style="margin-top:20px;">
+            <a href="article.html" style="color:#7dd3fc;text-decoration:none;padding:12px 24px;background:rgba(125,211,252,0.1);border-radius:8px;display:inline-block;border:2px solid rgba(125,211,252,0.3);transition:all 0.3s;">📖 Lire l'article complet</a>
+        </p>
     </div>
 </div>
 
