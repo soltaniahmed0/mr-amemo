@@ -385,7 +385,13 @@
         
         <p>Générer le caractère suivant consiste à choisir le caractère le plus pertinent parmi les M=30 caractères possibles. Il faut donc que notre modèle produise une sortie de taille M=30. Ce vecteur de sortie associe alors à chaque caractère une probabilité d'être le suivant dans la séquence, étant donné les T caractères précédents.</p>
         
-        <p>Pour obtenir cette distribution de probabilité, on empile une couche de neurones "classique" (appelée également couche dense) de taille M=30 à la suite de la couche RNN et on utilise une fonction d'activation softmax. Considérons l'exemple ci-dessous: la séquence d'entrée étant "il fait be", la probabilité de sortie la plus élevée pourrait correspondre à la lettre "a", dans l'optique de générer la phrase "il fait beau".</p>
+        <p>Pour obtenir cette distribution de probabilité, on empile une couche de neurones "classique" (appelée également couche dense) de taille M=30 à la suite de la couche RNN et on utilise une fonction d'activation softmax. La sortie yₜ à chaque timestep t est calculée par :</p>
+        
+        <div class="formula">
+            yₜ = Wₕᵧ · hₜ + bᵧ
+        </div>
+        
+        <p>où Wₕᵧ est une matrice de taille R × M (16 × 30) et bᵧ est un vecteur de biais de taille M. Considérons l'exemple ci-dessous: la séquence d'entrée étant "il fait be", la probabilité de sortie la plus élevée pourrait correspondre à la lettre "a", dans l'optique de générer la phrase "il fait beau".</p>
         
         <p>Détaillons maintenant ce qui se passe à l'intérieur-même de la couche RNN. Une couche RNN est une succession de T cellules. Chaque cellule a deux entrées :</p>
         
@@ -481,10 +487,21 @@
         <p>La formule devient donc :</p>
         
         <div class="formula">
-            hₜ = tanh( Wᵀ * concat(xₜ, hₜ₋₁) + b )
+            hₜ = tanh(Wₕₕ · hₜ₋₁ + Wₓₕ · xₜ + bₕ)
         </div>
         
-        <p>où W et b sont les poids appris par le modèle :</p>
+        <p>où :</p>
+        <ul>
+            <li><strong>Wₕₕ</strong> est la matrice de poids pour les connexions récurrentes (hₜ₋₁ → hₜ)</li>
+            <li><strong>Wₓₕ</strong> est la matrice de poids pour les connexions d'entrée (xₜ → hₜ)</li>
+            <li><strong>bₕ</strong> est le vecteur de biais</li>
+        </ul>
+        
+        <div class="info-box">
+            <p><strong>Note :</strong> Cette formule peut également être écrite sous forme concaténée : <code>hₜ = tanh( Wᵀ * concat(xₜ, hₜ₋₁) + b )</code> où W est une matrice unique de taille (R+M) × R. Les deux représentations sont mathématiquement équivalentes.</p>
+        </div>
+        
+        <p>Les dimensions des matrices sont :</p>
         
         <div class="matrix-container">
             <div class="matrix">
@@ -532,7 +549,7 @@
             <code>from keras.layers import SimpleRNN<br><br>model = Sequential()<br>model.add(SimpleRNN(units=16, input_shape=(10, 30), use_bias=False))</code>
         </div>
         
-        <p>On voit alors que notre modèle a 736 paramètres (ou poids) à apprendre.</p>
+        <p>On voit alors que notre modèle a 736 paramètres (ou poids) à apprendre. Notez que <code>use_bias=False</code> signifie qu'on n'utilise pas de vecteur de biais b. Avec un biais, on aurait 736 + 16 = 752 paramètres pour la couche RNN.</p>
         
         <div class="code-block">
             <code>print(model.summary())<br><br>_____________________________________________________________<br>Layer (type) Output Shape Param # <br>========================================================<br>simple_rnn_1 (SimpleRNN) (None, 16) 736 <br>========================================================<br>Total params: 736<br>Trainable params: 736<br>Non-trainable params: 0<br>_________________________________________________________________</code>
@@ -745,35 +762,56 @@
             </li>
             
             <li>
-                <strong>La forget gate</strong> est une couche dense de taille R avec une activation sigmoïde. À partir de hₜ₋₁ et xₜ, cette forget gate produit un vecteur fₜ de taille R, dont les valeurs sont comprises entre 0 et 1.
+                <strong>La forget gate</strong> produit un vecteur fₜ de taille R :
+                <div class="formula" style="margin:10px 0;font-size:14px;">
+                    fₜ = σ(W_f · hₜ₋₁ + U_f · xₜ + b_f)
+                </div>
+                où σ est la fonction sigmoïde. Cette porte détermine quelle partie du Cell State précédent doit être oubliée. Les valeurs sont entre 0 (tout oublier) et 1 (tout garder).
             </li>
             
             <li>
-                <strong>La forget gate agit comme un filtre</strong> pour "oublier" certaines informations du cell state. En effet, on effectue une multiplication terme à terme entre fₜ et cₜ₋₁, ce qui a tendance à annuler les composantes de cₜ₋₁ dont les homologues côté fₜ sont proches de 0. On obtient alors un cell state filtré, toujours de taille R.
+                <strong>L'input gate</strong> produit un filtre iₜ de taille R :
+                <div class="formula" style="margin:10px 0;font-size:14px;">
+                    iₜ = σ(W_i · hₜ₋₁ + U_i · xₜ + b_i)
+                </div>
+                Cette porte détermine quelle nouvelle information doit être ajoutée au Cell State.
             </li>
             
             <li>
-                <strong>L'input gate</strong> produit un filtre iₜ de valeurs comprises entre 0 et 1 et de taille R, à partir de hₜ₋₁ et xₜ, de façon similaire à la forget gate.
+                <strong>Le candidat</strong> ĉₜ de taille R est créé par une couche tanh :
+                <div class="formula" style="margin:10px 0;font-size:14px;">
+                    ĉₜ = tanh(W_c · hₜ₋₁ + U_c · xₜ + b_c)
+                </div>
+                Ce sont les nouvelles valeurs candidates qui pourraient être ajoutées au Cell State.
             </li>
             
             <li>
-                En parallèle, un vecteur <strong>kₜ</strong> de taille R est créé par une couche tanh. kₜ est le vecteur candidat pour mettre à jour le cell state.
+                <strong>Mise à jour du Cell State</strong> Cₜ :
+                <div class="formula" style="margin:10px 0;font-size:14px;">
+                    Cₜ = fₜ ⊙ Cₜ₋₁ + iₜ ⊙ ĉₜ
+                </div>
+                où ⊙ représente la multiplication élément par élément (Hadamard product). Cette formule combine deux opérations :
+                <ul style="margin-left:30px;margin-top:8px;">
+                    <li><strong>fₜ ⊙ Cₜ₋₁ :</strong> Oublie sélectivement l'ancien Cell State</li>
+                    <li><strong>iₜ ⊙ ĉₜ :</strong> Ajoute sélectivement de nouvelles informations</li>
+                </ul>
+                La mise à jour additive évite le problème du vanishing gradient !
             </li>
             
             <li>
-                Le candidat kₜ est filtré par l'input gate iₜ via une multiplication terme à terme. On obtient le vecteur de mise à jour du cell state.
+                <strong>L'output gate</strong> produit un filtre oₜ de taille R :
+                <div class="formula" style="margin:10px 0;font-size:14px;">
+                    oₜ = σ(W_o · hₜ₋₁ + U_o · xₜ + b_o)
+                </div>
+                Cette porte détermine quelle partie du Cell State doit être exposée comme Hidden State.
             </li>
             
             <li>
-                Le cell state filtré (obtenu à l'étape 3) est mis à jour grâce au vecteur candidat filtré (obtenu à l'étape 6). La mise à jour est une simple addition terme à terme de ces deux vecteurs. On obtient alors le nouveau <strong>cell state cₜ</strong>.
-            </li>
-            
-            <li>
-                De façon analogue à fₜ et iₜ, l'<strong>output gate</strong> produit un filtre oₜ de valeurs entre 0 et 1, et de taille R.
-            </li>
-            
-            <li>
-                Les valeurs du nouveau cell state cₜ sont ramenées à l'intervalle ]-1, 1[ par une activation tanh. Un filtrage par l'output gate oₜ est ensuite effectué pour enfin obtenir la sortie <strong>hₜ</strong>.
+                <strong>Le Hidden State</strong> hₜ est calculé :
+                <div class="formula" style="margin:10px 0;font-size:14px;">
+                    hₜ = oₜ ⊙ tanh(Cₜ)
+                </div>
+                Le Cell State est normalisé par tanh (entre -1 et 1), puis filtré par l'output gate. Ce hₜ sera utilisé comme hₜ₋₁ pour le prochain timestep et peut être utilisé pour des prédictions.
             </li>
         </ol>
         
