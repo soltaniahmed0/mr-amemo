@@ -431,6 +431,9 @@
         <button onclick="reset()">🔄 Reset</button>
         <button onclick="nextStep()" id="next-btn">Étape Suivante ▶</button>
         <button onclick="showGradientFlow()">📉 Voir Flux Gradient</button>
+        <p style="text-align:center;color:#9ca3af;font-size:13px;margin-top:10px;">
+            💡 Utilisez les flèches <strong>→</strong> ou <strong>↓</strong> du clavier pour naviguer
+        </p>
     </div>
 </div>
 
@@ -609,6 +612,15 @@ function showGradientFlow() {
         }, g.delay);
     });
 }
+
+// Keyboard navigation
+document.addEventListener('keydown', function(event) {
+    if(event.target.tagName === 'INPUT') return;
+    if(event.key === 'ArrowRight' || event.key === 'ArrowDown') {
+        event.preventDefault();
+        nextStep();
+    }
+});
 
 // Initialize connections when page loads
 window.addEventListener('load', function() {

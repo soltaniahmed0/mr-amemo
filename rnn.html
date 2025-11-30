@@ -144,11 +144,15 @@
     </div>
     <div style="margin-top:15px;">
         <button onclick="reset()">🔄 Reset</button>
+        <button onclick="next()" id="next-btn">Étape Suivante ▶</button>
         <button onclick="calculateAll()">⚡ Calculate All</button>
     </div>
 </div>
 
-<p style="opacity:.8;margin-bottom:25px">Click step by step to see each calculation: <span style="color:#ff6b6b">Wₕₕ·hₜ₋₁</span> → <span style="color:#06b6d4">Wₓₕ·xₜ</span> → <span style="color:#c8b6ff">h</span> → <span style="color:#d9f99d">y</span></p>
+<p style="opacity:.8;margin-bottom:25px">
+    Click step by step to see each calculation: <span style="color:#ff6b6b">Wₕₕ·hₜ₋₁</span> → <span style="color:#06b6d4">Wₓₕ·xₜ</span> → <span style="color:#c8b6ff">h</span> → <span style="color:#d9f99d">y</span><br>
+    <span style="color:#9ca3af;font-size:13px;">💡 Utilisez les flèches <strong>→</strong> ou <strong>↓</strong> du clavier pour naviguer</span>
+</p>
 
 <div class="container" id="rnn">
     <div class="block">
@@ -530,6 +534,17 @@ function calculateAll() {
         substep = 5;
     }, delay);
 }
+
+// Keyboard navigation
+document.addEventListener('keydown', function(event) {
+    // Don't interfere with input fields
+    if(event.target.tagName === 'INPUT') return;
+    
+    if(event.key === 'ArrowRight' || event.key === 'ArrowDown') {
+        event.preventDefault();
+        next();
+    }
+});
 
 // Initialize
 reset();
