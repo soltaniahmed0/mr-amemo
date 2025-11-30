@@ -27,8 +27,14 @@
     }
     
     .cards-grid{
-        display:grid;grid-template-columns:repeat(auto-fit, minmax(350px, 1fr));
+        display:grid;grid-template-columns:repeat(2, 1fr);
         gap:30px;margin-top:40px;
+    }
+    
+    @media (max-width: 768px) {
+        .cards-grid{
+            grid-template-columns:1fr;
+        }
     }
     
     .card{
@@ -99,19 +105,7 @@
     </div>
 
     <div class="cards-grid">
-        <a href="rnn.html" class="card">
-            <div class="card-icon">🔄</div>
-            <h2>RNN Interactive</h2>
-            <span class="badge badge-rnn">RNN</span>
-            <p>Visualisation étape par étape d'un RNN avec calculs en temps réel. Voyez comment les hidden states évoluent à travers les timesteps.</p>
-            <ul class="card-features">
-                <li>Calculs avec valeurs réelles</li>
-                <li>Visualisation du flux hₜ₋₁ → hₜ</li>
-                <li>Navigation étape par étape</li>
-                <li>Formules détaillées</li>
-            </ul>
-        </a>
-
+        <!-- First Row: RNN -->
         <a href="rnnshema.html" class="card">
             <div class="card-icon">📐</div>
             <h2>RNN Architecture</h2>
@@ -125,19 +119,20 @@
             </ul>
         </a>
 
-        <a href="lstm.html" class="card">
-            <div class="card-icon">🧠</div>
-            <h2>LSTM Interactive</h2>
-            <span class="badge badge-lstm">LSTM</span>
-            <p>Visualisation complète d'un LSTM unrollé avec calculs étape par étape. Comprenez comment les portes fonctionnent.</p>
+        <a href="rnn.html" class="card">
+            <div class="card-icon">🔄</div>
+            <h2>RNN Interactive</h2>
+            <span class="badge badge-rnn">RNN</span>
+            <p>Visualisation étape par étape d'un RNN avec calculs en temps réel. Voyez comment les hidden states évoluent à travers les timesteps.</p>
             <ul class="card-features">
-                <li>4 timesteps unrollés</li>
-                <li>Portes (Forget, Input, Output)</li>
-                <li>Cell State et Hidden State</li>
-                <li>Navigation par flèches clavier</li>
+                <li>Calculs avec valeurs réelles</li>
+                <li>Visualisation du flux hₜ₋₁ → hₜ</li>
+                <li>Navigation étape par étape</li>
+                <li>Formules détaillées</li>
             </ul>
         </a>
 
+        <!-- Second Row: LSTM -->
         <a href="lstmshema.html" class="card">
             <div class="card-icon">🏗️</div>
             <h2>LSTM Architecture</h2>
@@ -148,6 +143,19 @@
                 <li>Flux de données animé</li>
                 <li>Toutes les formules expliquées</li>
                 <li>Connexions visuelles claires</li>
+            </ul>
+        </a>
+
+        <a href="lstm.html" class="card">
+            <div class="card-icon">🧠</div>
+            <h2>LSTM Interactive</h2>
+            <span class="badge badge-lstm">LSTM</span>
+            <p>Visualisation complète d'un LSTM unrollé avec calculs étape par étape. Comprenez comment les portes fonctionnent.</p>
+            <ul class="card-features">
+                <li>4 timesteps unrollés</li>
+                <li>Portes (Forget, Input, Output)</li>
+                <li>Cell State et Hidden State</li>
+                <li>Navigation par flèches clavier</li>
             </ul>
         </a>
     </div>
