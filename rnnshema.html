@@ -1,0 +1,626 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Architecture RNN — Disparition du Gradient</title>
+<style>
+    *{margin:0;padding:0;box-sizing:border-box;}
+    body{
+        font-family:'Segoe UI',Arial,sans-serif;
+        background:linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+        padding:20px;min-height:100vh;
+    }
+    
+    h1{
+        text-align:center;color:#1e40af;margin-bottom:8px;
+        font-size:42px;text-shadow:2px 2px 4px rgba(0,0,0,0.1);
+        font-weight:700;
+    }
+    .subtitle{
+        text-align:center;color:#1e3a8a;margin-bottom:25px;
+        font-size:17px;
+    }
+
+    .container{
+        max-width:1600px;margin:0 auto;background:#fff;
+        border-radius:20px;padding:40px;box-shadow:0 10px 50px rgba(0,0,0,0.1);
+    }
+
+    /* RNN Cell Container */
+    .rnn-cell-container{
+        background:#eff6ff;border:5px solid #3b82f6;
+        border-radius:30px;padding:60px;position:relative;
+        min-height:600px;margin:30px 0;
+        box-shadow:inset 0 0 30px rgba(59,130,246,0.1);
+    }
+
+    /* Input/State Block - Combined */
+    .state-block{
+        position:absolute;border-radius:15px;
+        display:flex;flex-direction:column;
+        width:160px;
+        box-shadow:0 6px 20px rgba(0,0,0,0.2);
+        transition:all 0.4s;z-index:10;
+        overflow:hidden;
+    }
+    .state-block.active{
+        transform:scale(1.1);box-shadow:0 0 30px rgba(59,130,246,0.8);
+        z-index:15;
+    }
+
+    .state-block-input{
+        background:linear-gradient(135deg, #a78bfa 0%, #8b5cf6 100%);
+        border:4px solid #7c3aed;
+    }
+    .state-block-output{
+        background:linear-gradient(135deg, #a78bfa 0%, #8b5cf6 100%);
+        border:4px solid #7c3aed;
+    }
+
+    .state-item{
+        padding:20px;text-align:center;color:#fff;
+        font-weight:bold;font-size:18px;
+        border-bottom:3px solid rgba(255,255,255,0.2);
+    }
+    .state-item:last-child{border-bottom:none;}
+
+    .state-item.hidden{
+        background:linear-gradient(135deg, #a78bfa 0%, #8b5cf6 100%);
+    }
+    .state-item.input{
+        background:linear-gradient(135deg, #60a5fa 0%, #3b82f6 100%);
+    }
+    .state-item.output{
+        background:linear-gradient(135deg, #86efac 0%, #4ade80 100%);
+        color:#000;
+    }
+
+    /* Operation Nodes */
+    .operation{
+        position:absolute;width:60px;height:60px;
+        border-radius:50%;display:flex;
+        align-items:center;justify-content:center;
+        font-size:36px;font-weight:bold;color:#fff;
+        background:linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+        border:4px solid #1e40af;
+        box-shadow:0 6px 20px rgba(59,130,246,0.5);
+        transition:all 0.4s;z-index:10;
+    }
+    .operation.active{
+        transform:scale(1.4);box-shadow:0 0 35px rgba(59,130,246,1);
+        animation:pulse 1.2s ease-in-out infinite;
+        z-index:15;
+    }
+    @keyframes pulse{
+        0%,100%{transform:scale(1.4);}
+        50%{transform:scale(1.5);}
+    }
+    .operation-add::before{content:'+';}
+    .operation-mult::before{content:'×';}
+
+    /* Activation Function */
+    .activation{
+        position:absolute;width:90px;height:90px;
+        border-radius:12px;display:flex;
+        align-items:center;justify-content:center;
+        font-weight:bold;color:#fff;
+        border:4px solid #000;
+        box-shadow:0 6px 20px rgba(0,0,0,0.3);
+        transition:all 0.4s;z-index:10;
+        background:linear-gradient(135deg, #a855f7 0%, #9333ea 100%);
+        font-size:16px;
+    }
+    .activation.active{
+        transform:scale(1.25);box-shadow:0 0 30px rgba(168,85,247,1);
+        z-index:15;
+    }
+    .activation::before{
+        content:'tanh';font-weight:bold;
+    }
+
+    /* Weight Labels */
+    .weight-label{
+        position:absolute;background:rgba(255,255,255,0.95);
+        padding:6px 12px;border-radius:8px;
+        font-size:14px;font-weight:bold;
+        color:#1e40af;border:2px solid #3b82f6;
+        box-shadow:0 2px 8px rgba(0,0,0,0.15);
+        z-index:20;
+    }
+
+    /* Controls */
+    .controls{
+        text-align:center;margin:40px 0;
+    }
+    button{
+        padding:18px 50px;border:none;border-radius:15px;
+        font-size:20px;font-weight:bold;cursor:pointer;
+        transition:all 0.3s;margin:0 12px;
+        box-shadow:0 6px 20px rgba(0,0,0,0.2);
+        background:linear-gradient(135deg, #3b82f6 0%, #1e40af 100%);
+        color:#fff;min-width:180px;
+    }
+    button:hover{
+        transform:translateY(-3px);
+        box-shadow:0 8px 25px rgba(59,130,246,0.5);
+    }
+    button:disabled{
+        opacity:0.6;cursor:not-allowed;transform:none;
+    }
+
+    /* Info Panel */
+    .info-panel{
+        background:#eff6ff;border-radius:18px;padding:30px;
+        margin:25px 0;border:3px solid #3b82f6;
+    }
+    .info-panel h3{
+        color:#1e40af;margin-bottom:18px;font-size:22px;
+    }
+    .info-panel h4{
+        color:#1e40af;margin:20px 0 10px 0;font-size:18px;
+    }
+    .info-panel p, .info-panel li{
+        color:#1e3a8a;line-height:2;margin:12px 0;
+        font-size:16px;
+    }
+
+    /* Gradient Problem Section */
+    .gradient-problem{
+        background:#fef2f2;border-radius:15px;padding:25px;
+        margin:25px 0;border:3px solid #ef4444;
+    }
+    .gradient-problem h4{
+        color:#991b1b;margin-bottom:15px;
+    }
+
+    /* Gradient Bars */
+    .gradient-visual{
+        display:flex;justify-content:space-around;
+        flex-wrap:wrap;gap:25px;margin:25px 0;
+        padding:20px;background:#fff;border-radius:15px;
+    }
+    .gradient-item{
+        text-align:center;min-width:180px;
+    }
+    .gradient-item-title{
+        font-weight:bold;margin-bottom:12px;color:#1e40af;
+        font-size:15px;
+    }
+    .gradient-bar{
+        width:100%;height:30px;border-radius:15px;
+        border:3px solid #000;background:#fff;
+        overflow:hidden;margin:8px 0;
+        position:relative;
+    }
+    .gradient-fill{
+        height:100%;background:linear-gradient(90deg, #ef4444 0%, #f59e0b 50%, #10b981 100%);
+        transition:width 1s ease-out;
+        border-radius:12px;
+        display:flex;align-items:center;justify-content:flex-end;
+        padding-right:8px;color:#000;font-weight:bold;font-size:12px;
+    }
+    .gradient-percentage{
+        margin-top:5px;font-size:16px;font-weight:bold;
+        color:#1e40af;
+    }
+
+    /* Value Display */
+    .value{
+        font-size:18px;font-weight:800;margin-top:5px;
+        padding:3px 8px;background:rgba(0,0,0,0.15);
+        border-radius:5px;display:inline-block;
+        min-width:70px;
+    }
+
+    /* Connection Lines */
+    svg{
+        position:absolute;top:0;left:0;width:100%;height:100%;
+        z-index:1;pointer-events:none;overflow:visible;
+    }
+
+    .flow-line{
+        stroke-width:5;fill:none;
+        marker-end:url(#arrowhead);
+        opacity:0;
+        transition:opacity 0.5s;
+        stroke-dasharray:12,6;
+    }
+    .flow-line.active{
+        opacity:1;
+        animation:flowAnimation 2s ease-in-out infinite;
+    }
+    
+    @keyframes flowAnimation{
+        0%{stroke-dashoffset:0;}
+        100%{stroke-dashoffset:-150;}
+    }
+</style>
+</head>
+<body>
+
+<h1>🧠 Architecture RNN — Disparition du Gradient</h1>
+<p class="subtitle">Visualisation de l'architecture RNN et du problème de disparition du gradient</p>
+
+<div class="container">
+    <div class="info-panel">
+        <h3>📖 Architecture RNN — Formules et Description</h3>
+        
+        <div style="margin:20px 0;padding:15px;background:rgba(59,130,246,0.1);border-radius:10px;border-left:4px solid #3b82f6;">
+            <h4>🎯 Qu'est-ce qu'un RNN ?</h4>
+            <p>Un RNN (Recurrent Neural Network) est un réseau de neurones qui peut traiter des séquences de données en maintenant une mémoire des états précédents grâce à des connexions récurrentes.</p>
+        </div>
+
+        <div style="margin:20px 0;">
+            <h4>📐 Formules RNN</h4>
+            
+            <div style="background:#eff6ff;padding:15px;border-radius:10px;margin:15px 0;border-left:4px solid #3b82f6;">
+                <h5 style="color:#1e40af;margin-bottom:8px;">1️⃣ Hidden State (État Caché) - hₜ</h5>
+                <div style="font-family:'Courier New',monospace;background:#fff;padding:12px;border-radius:8px;margin:8px 0;font-size:15px;">
+                    <strong>hₜ = tanh(Wₕₕ · hₜ₋₁ + Wₓₕ · xₜ + bₕ)</strong>
+                </div>
+                <p style="margin-top:8px;"><strong>Explication :</strong> L'état caché combine l'état précédent (hₜ₋₁) multiplié par Wₕₕ avec l'input actuel (xₜ) multiplié par Wₓₕ, plus un biais. La fonction tanh normalise le résultat entre -1 et 1. C'est la <span style="color:#1e40af;">mémoire</span> du réseau.</p>
+            </div>
+
+            <div style="background:#f0fdf4;padding:15px;border-radius:10px;margin:15px 0;border-left:4px solid #22c55e;">
+                <h5 style="color:#166534;margin-bottom:8px;">2️⃣ Output (Sortie) - yₜ</h5>
+                <div style="font-family:'Courier New',monospace;background:#fff;padding:12px;border-radius:8px;margin:8px 0;font-size:15px;">
+                    <strong>yₜ = Wₕᵧ · hₜ + bᵧ</strong>
+                </div>
+                <p style="margin-top:8px;"><strong>Explication :</strong> La sortie est simplement une transformation linéaire de l'état caché. Cette sortie peut être utilisée pour des prédictions ou passer au prochain timestep.</p>
+            </div>
+        </div>
+
+        <div class="gradient-problem">
+            <h4>⚠️ Le Problème : Disparition du Gradient</h4>
+            
+            <div style="background:#fee2e2;padding:15px;border-radius:10px;margin:15px 0;border-left:4px solid #dc2626;">
+                <h5 style="color:#991b1b;margin-bottom:8px;">🔍 Pourquoi le Gradient Disparaît-il ?</h5>
+                <p>Lors de la <strong>backpropagation à travers le temps (BPTT)</strong>, le gradient doit voyager de l'erreur finale (à t=4) vers les timesteps précédents (t=3, t=2, t=1, t=0).</p>
+                
+                <div style="margin:15px 0;padding:12px;background:#fff;border-radius:8px;font-family:'Courier New',monospace;font-size:13px;line-height:1.6;">
+                    <strong>Gradient à t=0 :</strong><br>
+                    ∂L/∂Wₕₕ = ∂L/∂y₄ · (∂y₄/∂h₄) · (∂h₄/∂h₃) · (∂h₃/∂h₂) · (∂h₂/∂h₁) · (∂h₁/∂h₀) · (∂h₀/∂Wₕₕ)
+                </div>
+
+                <p style="margin-top:10px;"><strong>Le problème :</strong> Chaque terme (∂hₜ/∂hₜ₋₁) = tanh'(z) · Wₕₕ où tanh'(z) ≤ 1. Si Wₕₕ &lt; 1, chaque multiplication réduit le gradient. Après plusieurs timesteps, le gradient devient <span style="color:#dc2626;font-weight:bold;">exponentiellement petit</span> !</p>
+            </div>
+
+            <div style="background:#fef3c7;padding:15px;border-radius:10px;margin:15px 0;border-left:4px solid #f59e0b;">
+                <h5 style="color:#92400e;margin-bottom:8px;">📉 Exemple Numérique</h5>
+                <p>Supposons Wₕₕ = 0.5 et tanh' ≈ 0.5, alors chaque terme ≈ 0.25 :</p>
+                <ul style="margin-left:25px;margin-top:10px;">
+                    <li><strong>Timestep 1:</strong> Gradient ≈ 0.25 (25%)</li>
+                    <li><strong>Timestep 2:</strong> Gradient ≈ 0.25 × 0.25 = 0.0625 (6.25%)</li>
+                    <li><strong>Timestep 3:</strong> Gradient ≈ 0.0625 × 0.25 = 0.0156 (1.56%)</li>
+                    <li><strong>Timestep 4:</strong> Gradient ≈ 0.0156 × 0.25 = 0.0039 (<span style="color:#dc2626;">0.39%</span>!)</li>
+                    <li><strong>Timestep 10:</strong> Gradient ≈ 0.0000001 (<span style="color:#dc2626;">~0%</span>!)</li>
+                </ul>
+                <p style="margin-top:10px;">Après seulement 4 timesteps, le gradient n'est plus que <span style="color:#dc2626;font-weight:bold;">0.39%</span> de sa valeur initiale !</p>
+            </div>
+
+            <div style="background:#dbeafe;padding:15px;border-radius:10px;margin:15px 0;border-left:4px solid #3b82f6;">
+                <h5 style="color:#1e40af;margin-bottom:8px;">💡 Conséquences</h5>
+                <ul style="margin-left:25px;">
+                    <li><strong>Les poids ne s'updatent plus :</strong> Le gradient est trop petit pour modifier les poids efficacement</li>
+                    <li><strong>Pas de mémoire à long terme :</strong> Le réseau ne peut pas apprendre des dépendances distantes (plus de 5-10 timesteps)</li>
+                    <li><strong>Performance limitée :</strong> Seules les dépendances à court terme peuvent être capturées</li>
+                </ul>
+            </div>
+
+            <div style="background:#dcfce7;padding:15px;border-radius:10px;margin:15px 0;border-left:4px solid #22c55e;">
+                <h5 style="color:#166534;margin-bottom:8px;">✅ Solutions</h5>
+                <ul style="margin-left:25px;">
+                    <li><strong>LSTM :</strong> Utilise un Cell State qui permet au gradient de circuler sans disparaître grâce à des portes</li>
+                    <li><strong>GRU :</strong> Variante simplifiée de LSTM avec moins de paramètres</li>
+                    <li><strong>Gradient Clipping :</strong> Limite la valeur du gradient pour éviter aussi l'explosion</li>
+                    <li><strong>Initialisation des poids :</strong> Initialiser Wₕₕ proche de 1 (matrice d'identité) aide à préserver le gradient</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <div class="rnn-cell-container" id="rnn-cell" style="height:500px;">
+        <svg id="connections-svg">
+            <defs>
+                <marker id="arrowhead" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+                    <polygon points="0 0, 10 3, 0 6" fill="#3b82f6" />
+                </marker>
+                <marker id="arrowhead-purple" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+                    <polygon points="0 0, 10 3, 0 6" fill="#a855f7" />
+                </marker>
+                <marker id="arrowhead-green" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+                    <polygon points="0 0, 10 3, 0 6" fill="#22c55e" />
+                </marker>
+            </defs>
+        </svg>
+
+        <div style="position:absolute;left:50px;top:30px;font-weight:bold;color:#1e40af;font-size:18px;">ARCHITECTURE RNN</div>
+
+        <!-- Input/Previous State Block (Left) - Separated -->
+        <div class="state-block state-block-input" id="input-block-h" style="left:80px;top:100px;width:140px;height:90px;">
+            <div class="state-item hidden" style="height:100%;display:flex;flex-direction:column;justify-content:center;">
+                <div>h<sub>t-1</sub></div>
+                <div class="value" id="h-prev-value">0.000</div>
+            </div>
+        </div>
+        <div class="state-block state-block-input" id="input-block-x" style="left:80px;top:220px;width:140px;height:90px;">
+            <div class="state-item input" style="height:100%;display:flex;flex-direction:column;justify-content:center;">
+                <div>X<sub>t</sub></div>
+                <div class="value" id="x-t-value">1.000</div>
+            </div>
+        </div>
+
+        <!-- Weight Multiplications -->
+        <div class="operation operation-mult" id="mult-h" style="left:320px;top:100px;"></div>
+        <div class="operation operation-mult" id="mult-x" style="left:320px;top:210px;"></div>
+        
+        <!-- Weight Labels -->
+        <div class="weight-label" id="weight-hh" style="left:250px;top:80px;">Wₕₕ</div>
+        <div class="weight-label" id="weight-xh" style="left:250px;top:190px;">Wₓₕ</div>
+
+        <!-- Addition -->
+        <div class="operation operation-add" id="add" style="left:480px;top:155px;"></div>
+
+        <!-- Activation -->
+        <div class="activation" id="tanh" style="left:640px;top:145px;"></div>
+
+        <!-- Output/Current State Block (Right) - Separated -->
+        <div class="state-block state-block-output" id="output-block-h" style="left:820px;top:100px;width:140px;height:90px;">
+            <div class="state-item hidden" style="height:100%;display:flex;flex-direction:column;justify-content:center;">
+                <div>h<sub>t</sub></div>
+                <div class="value" id="h-t-value">0.000</div>
+            </div>
+        </div>
+        <div class="state-block state-block-output" id="output-block-y" style="left:820px;top:220px;width:140px;height:90px;">
+            <div class="state-item output" style="height:100%;display:flex;flex-direction:column;justify-content:center;">
+                <div>Y<sub>t</sub></div>
+                <div class="value" id="y-t-value">0.000</div>
+            </div>
+        </div>
+
+        <!-- Output Weight Label -->
+        <div class="weight-label" id="weight-hy" style="left:760px;top:200px;">Wₕᵧ</div>
+    </div>
+
+    <div class="gradient-problem" style="margin-top:30px;">
+        <h4>📊 Visualisation de la Disparition du Gradient</h4>
+        <p style="margin-bottom:20px;">Observez comment le gradient diminue exponentiellement lors de la backpropagation :</p>
+        
+        <div class="gradient-visual">
+            <div class="gradient-item">
+                <div class="gradient-item-title">Timestep 4 → 3</div>
+                <div class="gradient-bar">
+                    <div class="gradient-fill" id="grad-4" style="width:100%;">100%</div>
+                </div>
+                <div class="gradient-percentage">100%</div>
+            </div>
+            <div class="gradient-item">
+                <div class="gradient-item-title">Timestep 3 → 2</div>
+                <div class="gradient-bar">
+                    <div class="gradient-fill" id="grad-3" style="width:50%;">50%</div>
+                </div>
+                <div class="gradient-percentage">50%</div>
+            </div>
+            <div class="gradient-item">
+                <div class="gradient-item-title">Timestep 2 → 1</div>
+                <div class="gradient-bar">
+                    <div class="gradient-fill" id="grad-2" style="width:25%;">25%</div>
+                </div>
+                <div class="gradient-percentage">25%</div>
+            </div>
+            <div class="gradient-item">
+                <div class="gradient-item-title">Timestep 1 → 0</div>
+                <div class="gradient-bar">
+                    <div class="gradient-fill" id="grad-1" style="width:12.5%;">12.5%</div>
+                </div>
+                <div class="gradient-percentage">12.5%</div>
+            </div>
+        </div>
+
+        <div style="background:#fef2f2;padding:20px;border-radius:10px;margin-top:25px;border:3px solid #ef4444;">
+            <p style="color:#991b1b;font-weight:bold;text-align:center;font-size:18px;">
+                ⚠️ Après seulement 4 timesteps, le gradient n'est plus que 12.5% de sa valeur initiale !
+            </p>
+            <p style="text-align:center;margin-top:12px;color:#7c2d12;font-size:15px;">
+                Avec 10 timesteps : ~0.1% | Avec 20 timesteps : ~0.0001% (pratiquement nul !)
+            </p>
+        </div>
+    </div>
+
+    <div class="controls">
+        <button onclick="reset()">🔄 Reset</button>
+        <button onclick="nextStep()" id="next-btn">Étape Suivante ▶</button>
+        <button onclick="showGradientFlow()">📉 Voir Flux Gradient</button>
+    </div>
+</div>
+
+<script>
+// RNN Parameters
+const W_hh = 0.5;
+const W_xh = 0.8;
+const b_h = 0.1;
+const W_hy = 1.2;
+const b_y = 0.0;
+
+let step = 0;
+let h_prev = 0.0;
+let X_t = 1.0;
+
+const steps = ['input', 'mult-h', 'mult-x', 'add', 'tanh', 'output', 'complete'];
+
+function tanh(x) { return Math.tanh(x); }
+
+function reset() {
+    step = 0;
+    h_prev = 0.0;
+    X_t = 1.0;
+    
+    document.querySelectorAll('.state-block, .activation, .operation, .flow-line').forEach(el => {
+        el.classList.remove('active');
+        if(el.tagName === 'line' || el.tagName === 'path') {
+            el.setAttribute('opacity', '0');
+        }
+    });
+    
+    document.getElementById('h-prev-value').textContent = '0.000';
+    document.getElementById('x-t-value').textContent = '1.000';
+    document.getElementById('h-t-value').textContent = '0.000';
+    document.getElementById('y-t-value').textContent = '0.000';
+    
+    document.getElementById('next-btn').disabled = false;
+}
+
+function calculateRNN() {
+    const h_t = tanh(W_hh * h_prev + W_xh * X_t + b_h);
+    const y_t = W_hy * h_t + b_y;
+    return { h_t, y_t };
+}
+
+function getElementCenter(id) {
+    const el = document.getElementById(id);
+    if(!el) return {x:0, y:0};
+    const rect = el.getBoundingClientRect();
+    const container = document.getElementById('rnn-cell');
+    const containerRect = container.getBoundingClientRect();
+    return {
+        x: rect.left - containerRect.left + rect.width / 2,
+        y: rect.top - containerRect.top + rect.height / 2
+    };
+}
+
+function drawConnection(id, from, to, color = '#3b82f6', marker = 'arrowhead') {
+    const svg = document.getElementById('connections-svg');
+    const existing = document.getElementById(id);
+    if(existing) existing.remove();
+    
+    const fromPos = getElementCenter(from);
+    const toPos = getElementCenter(to);
+    
+    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    line.setAttribute('id', id);
+    line.setAttribute('x1', fromPos.x);
+    line.setAttribute('y1', fromPos.y);
+    line.setAttribute('x2', toPos.x);
+    line.setAttribute('y2', toPos.y);
+    line.setAttribute('stroke', color);
+    line.setAttribute('stroke-width', '5');
+    line.setAttribute('stroke-dasharray', '12,6');
+    line.setAttribute('class', 'flow-line');
+    line.setAttribute('marker-end', `url(#${marker})`);
+    line.setAttribute('opacity', '0');
+    
+    svg.appendChild(line);
+    return line;
+}
+
+function showConnection(id) {
+    const line = document.getElementById(id);
+    if(line) {
+        line.classList.add('active');
+        line.setAttribute('opacity', '1');
+    }
+}
+
+function initializeConnections() {
+    setTimeout(() => {
+        // From input blocks
+        drawConnection('conn-h-to-mult-h', 'input-block-h', 'mult-h', '#a855f7', 'arrowhead-purple');
+        drawConnection('conn-x-to-mult-x', 'input-block-x', 'mult-x', '#3b82f6', 'arrowhead');
+        
+        // To addition
+        drawConnection('conn-mult-h-to-add', 'mult-h', 'add', '#3b82f6', 'arrowhead');
+        drawConnection('conn-mult-x-to-add', 'mult-x', 'add', '#3b82f6', 'arrowhead');
+        
+        // To tanh
+        drawConnection('conn-add-to-tanh', 'add', 'tanh', '#a855f7', 'arrowhead-purple');
+        
+        // To output
+        drawConnection('conn-tanh-to-ht', 'tanh', 'output-block-h', '#a855f7', 'arrowhead-purple');
+        drawConnection('conn-ht-to-yt', 'output-block-h', 'output-block-y', '#22c55e', 'arrowhead-green');
+        
+        // Recurrent (hidden to hidden)
+        drawConnection('conn-ht-to-hprev', 'output-block-h', 'input-block-h', '#ef4444', 'arrowhead');
+    }, 300);
+}
+
+function nextStep() {
+    if(step >= steps.length) {
+        document.getElementById('next-btn').disabled = true;
+        return;
+    }
+    
+    const details = calculateRNN();
+    const currentStep = steps[step];
+    
+    document.getElementById('input-block-h').classList.add('active');
+    document.getElementById('input-block-x').classList.add('active');
+    
+    switch(currentStep) {
+        case 'mult-h':
+            document.getElementById('mult-h').classList.add('active');
+            showConnection('conn-h-to-mult-h');
+            break;
+        case 'mult-x':
+            document.getElementById('mult-x').classList.add('active');
+            showConnection('conn-x-to-mult-x');
+            break;
+        case 'add':
+            document.getElementById('add').classList.add('active');
+            showConnection('conn-mult-h-to-add');
+            showConnection('conn-mult-x-to-add');
+            break;
+        case 'tanh':
+            document.getElementById('tanh').classList.add('active');
+            showConnection('conn-add-to-tanh');
+            break;
+        case 'output':
+            document.getElementById('output-block-h').classList.add('active');
+            document.getElementById('output-block-y').classList.add('active');
+            document.getElementById('h-t-value').textContent = details.h_t.toFixed(3);
+            document.getElementById('y-t-value').textContent = details.y_t.toFixed(3);
+            showConnection('conn-tanh-to-ht');
+            showConnection('conn-ht-to-yt');
+            break;
+        case 'complete':
+            showConnection('conn-ht-to-hprev');
+            break;
+    }
+    
+    step++;
+}
+
+function showGradientFlow() {
+    const gradients = [
+        {id: 'grad-4', width: 100, delay: 0, text: '100%'},
+        {id: 'grad-3', width: 50, delay: 300, text: '50%'},
+        {id: 'grad-2', width: 25, delay: 600, text: '25%'},
+        {id: 'grad-1', width: 12.5, delay: 900, text: '12.5%'}
+    ];
+    
+    gradients.forEach(g => {
+        setTimeout(() => {
+            const bar = document.getElementById(g.id);
+            bar.style.width = '0%';
+            bar.textContent = '';
+            setTimeout(() => {
+                bar.style.width = g.width + '%';
+                bar.textContent = g.text;
+            }, 100);
+        }, g.delay);
+    });
+}
+
+// Initialize connections when page loads
+window.addEventListener('load', function() {
+    setTimeout(() => {
+        initializeConnections();
+        reset();
+    }, 200);
+});
+
+// Initialize
+reset();
+</script>
+
+</body>
+</html>

@@ -1,0 +1,4 @@
+# Exclude large video file from deployment
+lstm.mp4
+.DS_Store
+

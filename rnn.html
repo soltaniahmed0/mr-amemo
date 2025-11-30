@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Interactive RNN with Real Values</title>
+
+<style>
+    body{font-family:Arial;background:#0d1117;color:white;text-align:center;padding:40px;}
+    h2{color:#7dd3fc;font-size:28px;}
+
+    .input-section{
+        background:#1a1f2e;padding:25px;border-radius:12px;margin-bottom:30px;
+        display:inline-block;max-width:800px;
+    }
+    .input-group{
+        display:inline-block;margin:10px;text-align:left;
+    }
+    .input-group label{
+        display:block;margin-bottom:5px;color:#7dd3fc;font-size:14px;
+    }
+    .input-group input{
+        width:80px;padding:8px;border-radius:5px;border:2px solid #06b6d4;
+        background:#0d1117;color:white;font-size:16px;text-align:center;
+    }
+    .container{display:flex;justify-content:center;align-items:center;margin-top:35px;gap:25px;flex-wrap:wrap;position:relative;}
+
+    .block{display:flex;flex-direction:column;align-items:center;position:relative;}
+
+    .h-box{
+        width:90px;height:110px;background:#c8b6ff;border-radius:8px;
+        display:flex;flex-direction:column;align-items:center;justify-content:center;
+        font-size:14px;font-weight:bold;color:black;border:4px solid transparent;
+        transition:0.35s;padding:5px;position:relative;
+    }
+    .h-box .label{font-size:11px;opacity:0.7;margin-bottom:3px;}
+    .h-box .value{font-size:18px;}
+    
+    .recurrent-arrow{
+        position:absolute;top:50%;left:-60px;width:50px;height:4px;
+        background:#ff6b6b;z-index:10;transition:0.4s;opacity:0;
+        transform:translateY(-50%);
+    }
+    .recurrent-arrow::before{
+        content:'';position:absolute;right:-10px;top:-6px;
+        width:0;height:0;border-left:12px solid #ff6b6b;
+        border-top:8px solid transparent;border-bottom:8px solid transparent;
+    }
+    .recurrent-arrow::after{
+        content:'hₜ₋₁→';position:absolute;left:-50px;top:-12px;
+        font-size:11px;color:#ff6b6b;font-weight:bold;white-space:nowrap;
+    }
+    .recurrent-arrow.active{opacity:1;box-shadow:0 0 15px #ff6b6b;animation:pulse 1s ease-in-out;}
+    
+    @keyframes pulse{
+        0%,100%{box-shadow:0 0 15px #ff6b6b;}
+        50%{box-shadow:0 0 25px #ff6b6b,0 0 35px rgba(255,107,107,0.5);}
+    }
+    
+    .h0-box{
+        width:90px;height:110px;background:#8b5cf6;border-radius:8px;
+        display:flex;flex-direction:column;align-items:center;justify-content:center;
+        font-size:14px;font-weight:bold;color:white;border:4px solid #a78bfa;
+        padding:5px;margin-right:25px;
+    }
+    .h0-box .label{font-size:11px;opacity:0.9;margin-bottom:3px;}
+    .h0-box .value{font-size:18px;}
+
+    .x-circle,.y-circle{
+        width:65px;height:65px;border-radius:50%;font-weight:bold;
+        display:flex;flex-direction:column;align-items:center;justify-content:center;
+        margin:auto;margin-top:12px;font-size:14px;color:black;padding:5px;
+    }
+    .x-circle .label, .y-circle .label{font-size:10px;opacity:0.7;margin-bottom:2px;}
+    .x-circle .value, .y-circle .value{font-size:16px;}
+
+    .x-circle{background:#a5f3fc;border:3px solid #06b6d4;}
+    .y-circle{background:#d9f99d;border:3px solid #65a30d;margin-bottom:12px;}
+
+    .inactive{opacity:0.35;filter:blur(0.2px);}
+    .active{opacity:1;border-color:#00ff00 !important;box-shadow:0 0 15px rgba(0,255,0,0.5);}
+    
+    button{
+        margin-top:30px;padding:12px 30px;border:none;font-size:18px;
+        border-radius:6px;background:#06b6d4;color:black;font-weight:bold;cursor:pointer;
+        transition:0.3s;margin:10px;
+    }
+    button:hover{background:#67e8f9;transform:scale(1.07);}
+    button:disabled{opacity:0.5;cursor:not-allowed;}
+    
+    .formula{
+        background:#1a1f2e;padding:15px;border-radius:8px;margin-top:20px;
+        font-family:'Courier New',monospace;font-size:14px;color:#d9f99d;
+        display:inline-block;max-width:600px;
+    }
+    
+    .calculation-breakdown{
+        background:#1a1f2e;padding:20px;border-radius:12px;margin-top:20px;
+        font-family:'Courier New',monospace;font-size:13px;color:#fff;
+        display:inline-block;max-width:700px;text-align:left;
+        border:2px solid #7dd3fc;
+    }
+    .calculation-breakdown h4{
+        color:#7dd3fc;margin-top:0;text-align:center;
+    }
+    .calculation-breakdown .step{
+        margin:10px 0;padding:10px;background:#0d1117;border-radius:5px;
+        border-left:4px solid #06b6d4;
+    }
+    .calculation-breakdown .value{
+        color:#d9f99d;font-weight:bold;
+    }
+    .calculation-breakdown .highlight{
+        color:#ff6b6b;font-weight:bold;
+    }
+    
+    .prev-highlight{
+        border-color:#ff6b6b !important;
+        box-shadow:0 0 20px rgba(255,107,107,0.6) !important;
+    }
+    
+</style>
+</head>
+<body>
+
+<h2>🧠 RNN with Real Values — Calculate Hidden States & Outputs</h2>
+
+<div class="input-section">
+    <h3 style="color:#7dd3fc;margin-top:0;">Enter Input Values:</h3>
+    <div class="input-group">
+        <label>x₁:</label>
+        <input type="number" id="x1-input" value="1.0" step="0.1">
+    </div>
+    <div class="input-group">
+        <label>x₂:</label>
+        <input type="number" id="x2-input" value="0.5" step="0.1">
+    </div>
+    <div class="input-group">
+        <label>x₃:</label>
+        <input type="number" id="x3-input" value="0.8" step="0.1">
+    </div>
+    <div class="input-group">
+        <label>x₄:</label>
+        <input type="number" id="x4-input" value="0.3" step="0.1">
+    </div>
+    <div style="margin-top:15px;">
+        <button onclick="reset()">🔄 Reset</button>
+        <button onclick="calculateAll()">⚡ Calculate All</button>
+    </div>
+</div>
+
+<p style="opacity:.8;margin-bottom:25px">Click step by step to see each calculation: <span style="color:#ff6b6b">Wₕₕ·hₜ₋₁</span> → <span style="color:#06b6d4">Wₓₕ·xₜ</span> → <span style="color:#c8b6ff">h</span> → <span style="color:#d9f99d">y</span></p>
+
+<div class="container" id="rnn">
+    <div class="block">
+        <div class="h0-box" id="h0">
+            <div class="label">h₀</div>
+            <div class="value">0.000</div>
+        </div>
+    </div>
+
+    <div class="block">
+        <div class="y-circle inactive" id="y1">
+            <div class="label">y₁</div>
+            <div class="value">-</div>
+        </div>
+        <div class="h-box inactive" id="h1">
+            <div class="recurrent-arrow" id="arrow1"></div>
+            <div class="label">h₁</div>
+            <div class="value">-</div>
+        </div>
+        <div class="x-circle inactive" id="x1">
+            <div class="label">x₁</div>
+            <div class="value">-</div>
+        </div>
+    </div>
+
+    <div class="block">
+        <div class="y-circle inactive" id="y2">
+            <div class="label">y₂</div>
+            <div class="value">-</div>
+        </div>
+        <div class="h-box inactive" id="h2">
+            <div class="recurrent-arrow" id="arrow2"></div>
+            <div class="label">h₂</div>
+            <div class="value">-</div>
+        </div>
+        <div class="x-circle inactive" id="x2">
+            <div class="label">x₂</div>
+            <div class="value">-</div>
+        </div>
+    </div>
+
+    <div class="block">
+        <div class="y-circle inactive" id="y3">
+            <div class="label">y₃</div>
+            <div class="value">-</div>
+        </div>
+        <div class="h-box inactive" id="h3">
+            <div class="recurrent-arrow" id="arrow3"></div>
+            <div class="label">h₃</div>
+            <div class="value">-</div>
+        </div>
+        <div class="x-circle inactive" id="x3">
+            <div class="label">x₃</div>
+            <div class="value">-</div>
+        </div>
+    </div>
+
+    <div style="font-size:30px;color:#00eaff;">...</div>
+
+    <div class="block">
+        <div class="y-circle inactive" id="y4">
+            <div class="label">y₄</div>
+            <div class="value">-</div>
+        </div>
+        <div class="h-box inactive" id="h4">
+            <div class="recurrent-arrow" id="arrow4"></div>
+            <div class="label">h₄</div>
+            <div class="value">-</div>
+        </div>
+        <div class="x-circle inactive" id="x4">
+            <div class="label">x₄</div>
+            <div class="value">-</div>
+        </div>
+    </div>
+</div>
+
+<button onclick="next()" id="next-btn">Étape Suivante ▶</button>
+
+<div class="formula" id="formula-display">
+    <strong>RNN Formula:</strong><br>
+    hₜ = tanh(<span style="color:#ff6b6b">Wₕₕ·hₜ₋₁</span> + Wₓₕ·xₜ + bₕ)<br>
+    yₜ = Wₕᵧ·hₜ + bᵧ<br>
+    <span style="opacity:0.7;font-size:12px;">(Weights: Wₕₕ=0.5, Wₓₕ=0.8, bₕ=0.1, Wₕᵧ=1.2, bᵧ=0)</span>
+</div>
+
+<div class="calculation-breakdown" id="calculation-breakdown" style="display:none;">
+    <h4>📊 Step-by-Step Calculation Breakdown</h4>
+    <div id="breakdown-content"></div>
+</div>
+
+<script>
+// RNN Parameters (weights and biases)
+const W_hh = 0.5;  // weight from hidden to hidden
+const W_xh = 0.8;  // weight from input to hidden
+const b_h = 0.1;   // bias for hidden
+const W_hy = 1.2;  // weight from hidden to output
+const b_y = 0;     // bias for output
+
+let step = 0; // Current timestep (0-4)
+let substep = 0; // Current substep: 0=input, 1=Whh*h, 2=Wxh*x, 3=h, 4=y
+let inputs = [];
+let hiddenStates = [0]; // h₀ = 0 (initial hidden state)
+let outputs = [];
+let currentDetails = null;
+let currentIndex = 0;
+
+function tanh(x) {
+    return Math.tanh(x);
+}
+
+function reset() {
+    step = 0;
+    substep = 0;
+    inputs = [];
+    hiddenStates = [0];
+    outputs = [];
+    currentDetails = null;
+    currentIndex = 0;
+    
+    // Reset all visual elements
+    for(let i = 1; i <= 4; i++) {
+        document.getElementById(`x${i}`).classList.add("inactive");
+        document.getElementById(`x${i}`).classList.remove("active");
+        document.getElementById(`h${i}`).classList.add("inactive");
+        document.getElementById(`h${i}`).classList.remove("active", "prev-highlight");
+        document.getElementById(`y${i}`).classList.add("inactive");
+        document.getElementById(`y${i}`).classList.remove("active");
+        document.getElementById(`arrow${i}`).classList.remove("active");
+        document.getElementById(`x${i}`).querySelector(".value").textContent = "-";
+        document.getElementById(`h${i}`).querySelector(".value").textContent = "-";
+        document.getElementById(`y${i}`).querySelector(".value").textContent = "-";
+    }
+    
+    document.getElementById("calculation-breakdown").style.display = "none";
+    document.getElementById("next-btn").disabled = false;
+    document.getElementById("next-btn").textContent = "Next Step ▶";
+}
+
+function getInputs() {
+    return [
+        parseFloat(document.getElementById("x1-input").value) || 0,
+        parseFloat(document.getElementById("x2-input").value) || 0,
+        parseFloat(document.getElementById("x3-input").value) || 0,
+        parseFloat(document.getElementById("x4-input").value) || 0
+    ];
+}
+
+function calculateRNNStep(x_t, h_prev) {
+    // Calculate hidden state: h_t = tanh(W_hh * h_prev + W_xh * x_t + b_h)
+    const W_hh_h_prev = W_hh * h_prev;  // Contribution from previous hidden state
+    const W_xh_x_t = W_xh * x_t;        // Contribution from current input
+    const sum_before_tanh = W_hh_h_prev + W_xh_x_t + b_h;
+    const h_t = tanh(sum_before_tanh);
+    
+    // Calculate output: y_t = W_hy * h_t + b_y
+    const y_t = W_hy * h_t + b_y;
+    
+    return { 
+        h_t, 
+        y_t,
+        W_hh_h_prev,
+        W_xh_x_t,
+        sum_before_tanh
+    };
+}
+
+function showCalculationBreakdown(step, x_val, h_prev, details) {
+    const breakdownDiv = document.getElementById("calculation-breakdown");
+    const contentDiv = document.getElementById("breakdown-content");
+    
+    breakdownDiv.style.display = "block";
+    
+    contentDiv.innerHTML = `
+        <div class="step">
+            <strong>Calculating h${step}:</strong><br>
+            h${step} = tanh(Wₕₕ·h${step-1} + Wₓₕ·x${step} + bₕ)<br><br>
+            <span class="highlight">Step 1:</span> Wₕₕ·h${step-1} = ${W_hh.toFixed(1)} × <span class="value">${h_prev.toFixed(3)}</span> = <span class="value">${details.W_hh_h_prev.toFixed(4)}</span> <span style="color:#ff6b6b">← from previous hidden state</span><br>
+            <span class="highlight">Step 2:</span> Wₓₕ·x${step} = ${W_xh.toFixed(1)} × <span class="value">${x_val.toFixed(3)}</span> = <span class="value">${details.W_xh_x_t.toFixed(4)}</span><br>
+            <span class="highlight">Step 3:</span> Sum = ${details.W_hh_h_prev.toFixed(4)} + ${details.W_xh_x_t.toFixed(4)} + ${b_h.toFixed(1)} = <span class="value">${details.sum_before_tanh.toFixed(4)}</span><br>
+            <span class="highlight">Step 4:</span> h${step} = tanh(${details.sum_before_tanh.toFixed(4)}) = <span class="value">${details.h_t.toFixed(4)}</span><br>
+            <span class="highlight">Step 5:</span> y${step} = Wₕᵧ·h${step} = ${W_hy.toFixed(1)} × ${details.h_t.toFixed(4)} = <span class="value">${details.y_t.toFixed(4)}</span>
+        </div>
+    `;
+}
+
+function updateDisplay(index, x_val, h_val, y_val, h_prev, details) {
+    const xEl = document.getElementById(`x${index}`);
+    const hEl = document.getElementById(`h${index}`);
+    const yEl = document.getElementById(`y${index}`);
+    const arrowEl = document.getElementById(`arrow${index}`);
+    
+    // Highlight previous hidden state
+    if (index > 1) {
+        const prevHEl = document.getElementById(`h${index - 1}`);
+        prevHEl.classList.add("prev-highlight");
+        setTimeout(() => prevHEl.classList.remove("prev-highlight"), 1000);
+    } else {
+        // Highlight h0 for first step
+        document.getElementById("h0").classList.add("prev-highlight");
+        setTimeout(() => document.getElementById("h0").classList.remove("prev-highlight"), 1000);
+    }
+    
+    // Show recurrent arrow
+    arrowEl.classList.add("active");
+    
+    xEl.querySelector(".value").textContent = x_val.toFixed(3);
+    hEl.querySelector(".value").textContent = h_val.toFixed(3);
+    yEl.querySelector(".value").textContent = y_val.toFixed(3);
+    
+    xEl.classList.remove("inactive");
+    hEl.classList.remove("inactive");
+    yEl.classList.remove("inactive");
+    
+    xEl.classList.add("active");
+    hEl.classList.add("active");
+    yEl.classList.add("active");
+    
+    // Breakdown shown in showSubStep
+}
+
+function showSubStep(index, substep, x_val, h_prev, details) {
+    const xEl = document.getElementById(`x${index}`);
+    const hEl = document.getElementById(`h${index}`);
+    const yEl = document.getElementById(`y${index}`);
+    
+    switch(substep) {
+        case 0: // Show input
+            xEl.classList.remove("inactive");
+            xEl.classList.add("active");
+            xEl.querySelector(".value").textContent = x_val.toFixed(3);
+            hEl.classList.add("inactive");
+            yEl.classList.add("inactive");
+            break;
+            
+        case 1: // Calculate W_hh * h_prev
+            // Highlight previous h
+            if (index > 1) {
+                const prevH = document.getElementById(`h${index - 1}`);
+                prevH.classList.add("prev-highlight");
+                setTimeout(() => prevH.classList.remove("prev-highlight"), 2000);
+            } else {
+                const h0 = document.getElementById("h0");
+                h0.classList.add("prev-highlight");
+                setTimeout(() => h0.classList.remove("prev-highlight"), 2000);
+            }
+            document.getElementById(`arrow${index}`).classList.add("active");
+            showStepBreakdown(index, substep, x_val, h_prev, details);
+            break;
+            
+        case 2: // Calculate W_xh * x_t
+            showStepBreakdown(index, substep, x_val, h_prev, details);
+            break;
+            
+        case 3: // Calculate h
+            hEl.classList.remove("inactive");
+            hEl.classList.add("active");
+            hEl.querySelector(".value").textContent = details.h_t.toFixed(3);
+            showStepBreakdown(index, substep, x_val, h_prev, details);
+            break;
+            
+        case 4: // Calculate y
+            yEl.classList.remove("inactive");
+            yEl.classList.add("active");
+            yEl.querySelector(".value").textContent = details.y_t.toFixed(3);
+            showStepBreakdown(index, substep, x_val, h_prev, details);
+            break;
+    }
+}
+
+function showStepBreakdown(index, substep, x_val, h_prev, details) {
+    const breakdownDiv = document.getElementById("calculation-breakdown");
+    const contentDiv = document.getElementById("breakdown-content");
+    breakdownDiv.style.display = "block";
+    
+    let content = `<div class="step"><strong>Calcul de h${index}:</strong><br>`;
+    
+    if (substep >= 1) {
+        content += `<span class="highlight">Étape 1:</span> Wₕₕ·h${index-1} = ${W_hh.toFixed(1)} × <span class="value">${h_prev.toFixed(3)}</span> = <span class="value">${details.W_hh_h_prev.toFixed(4)}</span> <span style="color:#ff6b6b">← depuis h${index-1}</span><br>`;
+    }
+    if (substep >= 2) {
+        content += `<span class="highlight">Étape 2:</span> Wₓₕ·x${index} = ${W_xh.toFixed(1)} × <span class="value">${x_val.toFixed(3)}</span> = <span class="value">${details.W_xh_x_t.toFixed(4)}</span><br>`;
+    }
+    if (substep >= 3) {
+        content += `<span class="highlight">Étape 3:</span> Somme = ${details.W_hh_h_prev.toFixed(4)} + ${details.W_xh_x_t.toFixed(4)} + ${b_h.toFixed(1)} = <span class="value">${details.sum_before_tanh.toFixed(4)}</span><br>`;
+        content += `<span class="highlight">Étape 4:</span> h${index} = tanh(${details.sum_before_tanh.toFixed(4)}) = <span class="value">${details.h_t.toFixed(4)}</span><br>`;
+    }
+    if (substep >= 4) {
+        content += `<span class="highlight">Étape 5:</span> y${index} = Wₕᵧ·h${index} = ${W_hy.toFixed(1)} × ${details.h_t.toFixed(4)} = <span class="value">${details.y_t.toFixed(4)}</span>`;
+    }
+    
+    content += `</div>`;
+    contentDiv.innerHTML = content;
+}
+
+function next() {
+    // If we're starting a new timestep, calculate everything first
+    if (substep === 0 && step < 4) {
+        inputs = getInputs();
+        const x_t = inputs[step];
+        const h_prev = hiddenStates[hiddenStates.length - 1];
+        currentDetails = calculateRNNStep(x_t, h_prev);
+        currentIndex = step + 1;
+    }
+    
+    // Show current substep
+    if (step < 4) {
+        const x_t = inputs[step];
+        const h_prev = hiddenStates[hiddenStates.length - 1];
+        showSubStep(currentIndex, substep, x_t, h_prev, currentDetails);
+        
+        substep++;
+        
+        // If we finished all substeps for this timestep, move to next timestep
+        if (substep > 4) {
+            // Store results
+            hiddenStates.push(currentDetails.h_t);
+            outputs.push(currentDetails.y_t);
+            
+        step++;
+            substep = 0;
+        }
+        
+        if (step >= 4 && substep > 4) {
+            document.getElementById("next-btn").disabled = true;
+            document.getElementById("next-btn").textContent = "✓ Terminé";
+        } else {
+            document.getElementById("next-btn").textContent = "Étape Suivante ▶";
+        }
+    }
+}
+
+function calculateAll() {
+    reset();
+    inputs = getInputs();
+    
+    let delay = 0;
+    inputs.forEach((x_t, idx) => {
+        const index = idx + 1;
+        const h_prev = hiddenStates[hiddenStates.length - 1];
+        const details = calculateRNNStep(x_t, h_prev);
+        
+        // Show input
+        setTimeout(() => {
+            showSubStep(index, 0, x_t, h_prev, details);
+        }, delay);
+        delay += 600;
+        
+        // Show W_hh * h_prev
+        setTimeout(() => {
+            showSubStep(index, 1, x_t, h_prev, details);
+        }, delay);
+        delay += 600;
+        
+        // Show W_xh * x_t
+        setTimeout(() => {
+            showSubStep(index, 2, x_t, h_prev, details);
+        }, delay);
+        delay += 600;
+        
+        // Show h
+        setTimeout(() => {
+            showSubStep(index, 3, x_t, h_prev, details);
+        }, delay);
+        delay += 600;
+        
+        // Show y
+        setTimeout(() => {
+            showSubStep(index, 4, x_t, h_prev, details);
+            hiddenStates.push(details.h_t);
+            outputs.push(details.y_t);
+        }, delay);
+        delay += 600;
+    });
+    
+    setTimeout(() => {
+        document.getElementById("next-btn").disabled = true;
+        document.getElementById("next-btn").textContent = "✓ Terminé";
+        step = 4;
+        substep = 5;
+    }, delay);
+}
+
+// Initialize
+reset();
+</script>
+
+</body>
+</html>

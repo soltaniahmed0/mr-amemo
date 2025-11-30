@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Neural Networks Visualizations — RNN & LSTM</title>
+<style>
+    *{margin:0;padding:0;box-sizing:border-box;}
+    body{
+        font-family:'Segoe UI',Arial,sans-serif;
+        background:linear-gradient(135deg, #0d1117 0%, #1a1f2e 100%);
+        color:#fff;min-height:100vh;padding:40px 20px;
+    }
+    
+    .container{
+        max-width:1200px;margin:0 auto;
+    }
+    
+    h1{
+        text-align:center;color:#7dd3fc;margin-bottom:10px;
+        font-size:48px;font-weight:700;
+        text-shadow:2px 2px 4px rgba(0,0,0,0.3);
+    }
+    .subtitle{
+        text-align:center;color:#9ca3af;margin-bottom:50px;
+        font-size:20px;
+    }
+    
+    .cards-grid{
+        display:grid;grid-template-columns:repeat(auto-fit, minmax(350px, 1fr));
+        gap:30px;margin-top:40px;
+    }
+    
+    .card{
+        background:linear-gradient(135deg, #1a1f2e 0%, #0d1117 100%);
+        border-radius:20px;padding:35px;
+        border:2px solid rgba(125,211,252,0.3);
+        transition:all 0.4s;cursor:pointer;
+        box-shadow:0 10px 30px rgba(0,0,0,0.3);
+        text-decoration:none;color:inherit;display:block;
+    }
+    .card:hover{
+        transform:translateY(-8px);
+        border-color:#7dd3fc;
+        box-shadow:0 15px 40px rgba(125,211,252,0.4);
+    }
+    
+    .card-icon{
+        font-size:48px;margin-bottom:15px;text-align:center;
+    }
+    
+    .card h2{
+        color:#7dd3fc;margin-bottom:12px;font-size:28px;
+        text-align:center;
+    }
+    
+    .card p{
+        color:#9ca3af;line-height:1.8;font-size:16px;
+        margin-bottom:15px;
+    }
+    
+    .card-features{
+        list-style:none;margin-top:15px;
+    }
+    .card-features li{
+        color:#cbd5e1;padding:8px 0;font-size:14px;
+        border-bottom:1px solid rgba(125,211,252,0.1);
+    }
+    .card-features li:last-child{border-bottom:none;}
+    .card-features li::before{
+        content:'✓ ';color:#4ade80;margin-right:8px;
+    }
+    
+    .badge{
+        display:inline-block;padding:6px 12px;
+        border-radius:20px;font-size:12px;font-weight:bold;
+        margin-top:10px;
+    }
+    .badge-rnn{background:#3b82f6;color:#fff;}
+    .badge-lstm{background:#a855f7;color:#fff;}
+    .badge-schema{background:#f59e0b;color:#000;}
+    
+    .header-section{
+        text-align:center;margin-bottom:60px;
+    }
+    
+    .footer{
+        text-align:center;margin-top:60px;padding:30px;
+        color:#6b7280;border-top:1px solid rgba(125,211,252,0.2);
+    }
+</style>
+</head>
+<body>
+
+<div class="container">
+    <div class="header-section">
+        <h1>🧠 Neural Networks Visualizations</h1>
+        <p class="subtitle">Visualisations interactives de RNN et LSTM avec valeurs réelles</p>
+    </div>
+
+    <div class="cards-grid">
+        <a href="rnn.html" class="card">
+            <div class="card-icon">🔄</div>
+            <h2>RNN Interactive</h2>
+            <span class="badge badge-rnn">RNN</span>
+            <p>Visualisation étape par étape d'un RNN avec calculs en temps réel. Voyez comment les hidden states évoluent à travers les timesteps.</p>
+            <ul class="card-features">
+                <li>Calculs avec valeurs réelles</li>
+                <li>Visualisation du flux hₜ₋₁ → hₜ</li>
+                <li>Navigation étape par étape</li>
+                <li>Formules détaillées</li>
+            </ul>
+        </a>
+
+        <a href="rnnshema.html" class="card">
+            <div class="card-icon">📐</div>
+            <h2>RNN Architecture</h2>
+            <span class="badge badge-schema">Schéma</span>
+            <p>Architecture interne d'une cellule RNN avec visualisation du problème de disparition du gradient.</p>
+            <ul class="card-features">
+                <li>Schéma détaillé de l'architecture</li>
+                <li>Visualisation de la disparition du gradient</li>
+                <li>Explications mathématiques</li>
+                <li>Connexions animées</li>
+            </ul>
+        </a>
+
+        <a href="lstm.html" class="card">
+            <div class="card-icon">🧠</div>
+            <h2>LSTM Interactive</h2>
+            <span class="badge badge-lstm">LSTM</span>
+            <p>Visualisation complète d'un LSTM unrollé avec calculs étape par étape. Comprenez comment les portes fonctionnent.</p>
+            <ul class="card-features">
+                <li>4 timesteps unrollés</li>
+                <li>Portes (Forget, Input, Output)</li>
+                <li>Cell State et Hidden State</li>
+                <li>Navigation par flèches clavier</li>
+            </ul>
+        </a>
+
+        <a href="lstmshema.html" class="card">
+            <div class="card-icon">🏗️</div>
+            <h2>LSTM Architecture</h2>
+            <span class="badge badge-schema">Schéma</span>
+            <p>Architecture interne détaillée d'une cellule LSTM avec flux de données et connexions visuelles.</p>
+            <ul class="card-features">
+                <li>Schéma complet de la cellule</li>
+                <li>Flux de données animé</li>
+                <li>Toutes les formules expliquées</li>
+                <li>Connexions visuelles claires</li>
+            </ul>
+        </a>
+    </div>
+
+    <div class="footer">
+        <p>Neural Networks Visualizations — RNN & LSTM Interactive Demos</p>
+        <p style="margin-top:10px;font-size:14px;">Explorez chaque visualisation pour comprendre le fonctionnement des réseaux récurrents</p>
+    </div>
+</div>
+
+</body>
+</html>
+

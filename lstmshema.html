@@ -1,0 +1,876 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Architecture Interne LSTM — Schéma Détaillé</title>
+<style>
+    *{margin:0;padding:0;box-sizing:border-box;}
+    body{
+        font-family:'Segoe UI',Arial,sans-serif;
+        background:linear-gradient(135deg, #fef3f2 0%, #fff7ed 100%);
+        padding:20px;min-height:100vh;
+    }
+    
+    h1{
+        text-align:center;color:#c2410c;margin-bottom:8px;
+        font-size:42px;text-shadow:2px 2px 4px rgba(0,0,0,0.1);
+        font-weight:700;
+    }
+    .subtitle{
+        text-align:center;color:#9a3412;margin-bottom:25px;
+        font-size:17px;
+    }
+
+    .container{
+        max-width:1600px;margin:0 auto;background:#fff;
+        border-radius:20px;padding:40px;box-shadow:0 10px 50px rgba(0,0,0,0.1);
+    }
+
+    /* LSTM Cell Container - Larger and clearer */
+    .lstm-cell-container{
+        background:#fff7ed;border:5px solid #ea580c;
+        border-radius:30px;padding:60px;position:relative;
+        min-height:800px;margin:30px 0;
+        box-shadow:inset 0 0 30px rgba(234,88,12,0.1);
+    }
+
+    /* Input/Output Nodes - Larger and clearer */
+    .node{
+        position:absolute;border-radius:15px;
+        display:flex;flex-direction:column;
+        align-items:center;justify-content:center;
+        font-weight:bold;font-size:16px;
+        box-shadow:0 6px 20px rgba(0,0,0,0.2);
+        transition:all 0.4s;z-index:10;
+    }
+    .node.active{
+        transform:scale(1.15);box-shadow:0 0 30px rgba(234,88,12,0.8);
+        border-width:5px;z-index:15;
+    }
+
+    .node-input{
+        background:linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+        color:#fff;border:4px solid #1e40af;
+        padding:20px 30px;min-width:140px;font-size:18px;
+    }
+    .node-cell-prev{
+        background:linear-gradient(135deg, #ea580c 0%, #dc2626 100%);
+        color:#fff;border:4px solid #c2410c;
+        padding:20px 30px;min-width:140px;font-size:18px;
+    }
+    .node-hidden-prev{
+        background:linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+        color:#fff;border:4px solid #b45309;
+        padding:20px 30px;min-width:140px;font-size:18px;
+    }
+    .node-output{
+        background:linear-gradient(135deg, #ea580c 0%, #dc2626 100%);
+        color:#fff;border:4px solid #c2410c;
+        padding:20px 30px;min-width:140px;font-size:18px;
+    }
+    .node-hidden-out{
+        background:linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+        color:#fff;border:4px solid #b45309;
+        padding:20px 30px;min-width:140px;font-size:18px;
+    }
+
+    /* Cell State Path - More prominent */
+    .cell-state-path{
+        position:absolute;height:12px;background:linear-gradient(90deg, #ea580c, #f97316);
+        border-radius:6px;z-index:5;
+        box-shadow:0 4px 15px rgba(234,88,12,0.5);
+        border:2px solid #c2410c;
+    }
+    .cell-state-path.active{
+        background:linear-gradient(90deg, #f97316, #fb923c);
+        box-shadow:0 0 25px rgba(234,88,12,0.9);
+        animation:flow 2s ease-in-out infinite;
+    }
+    @keyframes flow{
+        0%,100%{opacity:1;transform:scaleY(1);}
+        50%{opacity:0.9;transform:scaleY(1.1);}
+    }
+
+    /* Gate Boxes - Larger */
+    .gate-box{
+        position:absolute;border-radius:12px;
+        display:flex;flex-direction:column;
+        align-items:center;justify-content:center;
+        padding:15px;min-width:110px;min-height:110px;
+        font-weight:bold;font-size:14px;color:#000;
+        border:4px solid transparent;
+        box-shadow:0 6px 20px rgba(0,0,0,0.25);
+        transition:all 0.4s;z-index:10;
+    }
+    .gate-box.active{
+        transform:scale(1.2);border-color:#10b981;
+        box-shadow:0 0 35px rgba(16,185,129,0.8);
+        z-index:15;
+    }
+
+    .gate-forget{
+        background:linear-gradient(135deg, #86efac 0%, #4ade80 100%);
+        border-color:#22c55e;
+    }
+    .gate-input{
+        background:linear-gradient(135deg, #86efac 0%, #4ade80 100%);
+        border-color:#22c55e;
+    }
+    .gate-output{
+        background:linear-gradient(135deg, #86efac 0%, #4ade80 100%);
+        border-color:#22c55e;
+    }
+
+    /* Activation Functions - Larger */
+    .activation{
+        position:absolute;width:85px;height:85px;
+        border-radius:12px;display:flex;
+        align-items:center;justify-content:center;
+        font-weight:bold;color:#fff;
+        border:4px solid #000;
+        box-shadow:0 6px 20px rgba(0,0,0,0.3);
+        transition:all 0.4s;z-index:10;
+    }
+    .activation.active{
+        transform:scale(1.25);box-shadow:0 0 30px rgba(59,130,246,1);
+        z-index:15;
+    }
+
+    .activation-sigmoid{
+        background:linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+        border-color:#1e40af;
+    }
+    .activation-sigmoid::before{
+        content:'σ';font-size:42px;font-weight:bold;
+    }
+
+    .activation-tanh{
+        background:linear-gradient(135deg, #a855f7 0%, #9333ea 100%);
+        border-color:#7c3aed;
+    }
+    .activation-tanh::before{
+        content:'tanh';font-size:16px;font-weight:bold;
+    }
+
+    /* Operation Nodes - Larger */
+    .operation{
+        position:absolute;width:65px;height:65px;
+        border-radius:50%;display:flex;
+        align-items:center;justify-content:center;
+        font-size:36px;font-weight:bold;color:#fff;
+        background:linear-gradient(135deg, #ea580c 0%, #dc2626 100%);
+        border:4px solid #c2410c;
+        box-shadow:0 6px 20px rgba(234,88,12,0.5);
+        transition:all 0.4s;z-index:10;
+    }
+    .operation.active{
+        transform:scale(1.4);box-shadow:0 0 35px rgba(234,88,12,1);
+        animation:pulse 1.2s ease-in-out infinite;
+        z-index:15;
+    }
+    @keyframes pulse{
+        0%,100%{transform:scale(1.4);}
+        50%{transform:scale(1.5);}
+    }
+
+    .operation-multiply::before{content:'×';}
+    .operation-add::before{content:'+';font-size:40px;}
+
+    /* Candidate Gate - Larger */
+    .candidate-gate{
+        position:absolute;background:linear-gradient(135deg, #fcd34d 0%, #fbbf24 100%);
+        border:4px solid #f59e0b;border-radius:12px;
+        padding:15px;min-width:110px;min-height:110px;
+        display:flex;flex-direction:column;
+        align-items:center;justify-content:center;
+        font-weight:bold;font-size:14px;color:#000;
+        box-shadow:0 6px 20px rgba(0,0,0,0.25);
+        transition:all 0.4s;z-index:10;
+    }
+    .candidate-gate.active{
+        transform:scale(1.2);border-color:#10b981;
+        box-shadow:0 0 35px rgba(16,185,129,0.8);
+        z-index:15;
+    }
+
+    /* Connection Lines - SVG based for clarity */
+    .connection-line{
+        position:absolute;z-index:1;
+        stroke-width:4;fill:none;
+        transition:all 0.5s;
+        opacity:0.3;
+    }
+    .connection-line.active{
+        opacity:1;
+        filter:drop-shadow(0 0 8px rgba(59,130,246,0.8));
+        stroke:#3b82f6;
+        stroke-width:5;
+        animation:drawLine 1s ease-in-out;
+    }
+    @keyframes drawLine{
+        0%{stroke-dasharray:0 1000;}
+        100%{stroke-dasharray:1000 0;}
+    }
+
+    /* Animated Flow Lines */
+    .flow-line{
+        stroke-width:4;fill:none;
+        marker-end:url(#arrowhead);
+        opacity:0;
+        transition:opacity 0.5s;
+    }
+    .flow-line.active{
+        opacity:1;
+        animation:flowAnimation 2s ease-in-out infinite;
+    }
+    
+    @keyframes flowAnimation{
+        0%{
+            stroke-dashoffset:0;
+            stroke-width:4;
+        }
+        50%{
+            stroke-width:6;
+        }
+        100%{
+            stroke-dashoffset:-100;
+            stroke-width:4;
+        }
+    }
+
+    /* Data Flow Particles */
+    .flow-particle{
+        position:absolute;width:12px;height:12px;
+        border-radius:50%;background:#3b82f6;
+        box-shadow:0 0 10px rgba(59,130,246,0.8);
+        z-index:12;pointer-events:none;
+        opacity:0;
+    }
+    .flow-particle.active{
+        opacity:1;
+        animation:moveParticle 2s linear;
+    }
+    
+    @keyframes moveParticle{
+        0%{transform:translate(0,0) scale(1);opacity:1;}
+        100%{transform:translate(var(--dx), var(--dy)) scale(0.5);opacity:0;}
+    }
+
+    /* Section Labels */
+    .section-label{
+        position:absolute;background:rgba(255,255,255,0.95);
+        padding:8px 15px;border-radius:8px;
+        font-size:13px;font-weight:bold;
+        color:#7c2d12;border:2px solid #ea580c;
+        box-shadow:0 4px 10px rgba(0,0,0,0.1);
+        z-index:20;
+    }
+
+    /* Controls */
+    .controls{
+        text-align:center;margin:40px 0;
+    }
+    button{
+        padding:18px 50px;border:none;border-radius:15px;
+        font-size:20px;font-weight:bold;cursor:pointer;
+        transition:all 0.3s;margin:0 12px;
+        box-shadow:0 6px 20px rgba(0,0,0,0.2);
+        background:linear-gradient(135deg, #ea580c 0%, #c2410c 100%);
+        color:#fff;min-width:180px;
+    }
+    button:hover{
+        transform:translateY(-3px);
+        box-shadow:0 8px 25px rgba(234,88,12,0.5);
+    }
+    button:disabled{
+        opacity:0.6;cursor:not-allowed;transform:none;
+    }
+
+    /* Legend - Enhanced */
+    .legend{
+        display:flex;justify-content:center;gap:35px;
+        flex-wrap:wrap;margin:35px 0;padding:25px;
+        background:#fff7ed;border-radius:18px;
+        border:3px solid #ea580c;
+    }
+    .legend-item{
+        display:flex;align-items:center;gap:12px;
+        font-size:15px;font-weight:700;color:#7c2d12;
+    }
+    .legend-box{
+        width:35px;height:35px;border-radius:8px;
+        border:3px solid #000;
+        box-shadow:0 2px 8px rgba(0,0,0,0.2);
+    }
+
+    /* Info Panel */
+    .info-panel{
+        background:#fff7ed;border-radius:18px;padding:30px;
+        margin:25px 0;border:3px solid #ea580c;
+    }
+    .info-panel h3{
+        color:#c2410c;margin-bottom:18px;font-size:22px;
+    }
+    .info-panel p, .info-panel li{
+        color:#7c2d12;line-height:2;margin:12px 0;
+        font-size:16px;
+    }
+
+    /* Value Display */
+    .value{
+        font-size:18px;font-weight:800;margin-top:8px;
+        padding:5px 10px;background:rgba(0,0,0,0.1);
+        border-radius:5px;min-width:80px;
+    }
+</style>
+</head>
+<body>
+
+<h1>🧠 Architecture Interne d'une Cellule LSTM</h1>
+<p class="subtitle">Visualisation détaillée du flux de données à travers les portes et opérations</p>
+
+<div class="container">
+    <div class="info-panel">
+        <h3>📖 Description Complète - Architecture LSTM</h3>
+        
+        <div style="margin:20px 0;padding:15px;background:rgba(234,88,12,0.1);border-radius:10px;border-left:4px solid #ea580c;">
+            <h4 style="color:#c2410c;margin-bottom:10px;">🎯 Objectif de LSTM</h4>
+            <p>LSTM (Long Short-Term Memory) résout le problème de la disparition du gradient dans les RNN classiques en utilisant un <strong>Cell State</strong> qui peut transporter l'information sur de longues séquences. Il utilise trois portes pour contrôler ce flux d'information.</p>
+        </div>
+
+        <div style="margin:20px 0;">
+            <h4 style="color:#c2410c;margin-bottom:15px;font-size:18px;">📐 Formules LSTM Complètes</h4>
+            
+            <div style="background:#fef3f2;padding:15px;border-radius:10px;margin:15px 0;border-left:4px solid #dc2626;">
+                <h5 style="color:#991b1b;margin-bottom:8px;">1️⃣ Forget Gate (Porte d'Oubli) - fₜ</h5>
+                <div style="font-family:'Courier New',monospace;background:#fff;padding:12px;border-radius:8px;margin:8px 0;font-size:15px;">
+                    <strong>fₜ = σ(W_f · hₜ₋₁ + U_f · xₜ + b_f)</strong>
+                </div>
+                <p style="margin-top:8px;"><strong>Pourquoi :</strong> Détermine quelle partie de l'information du Cell State précédent (Cₜ₋₁) doit être <span style="color:#dc2626;">oubliée</span>. La sigmoid produit une valeur entre 0 (tout oublier) et 1 (tout garder). Cela permet à LSTM de se débarrasser d'informations obsolètes.</p>
+            </div>
+
+            <div style="background:#f0fdf4;padding:15px;border-radius:10px;margin:15px 0;border-left:4px solid #22c55e;">
+                <h5 style="color:#166534;margin-bottom:8px;">2️⃣ Input Gate (Porte d'Entrée) - iₜ</h5>
+                <div style="font-family:'Courier New',monospace;background:#fff;padding:12px;border-radius:8px;margin:8px 0;font-size:15px;">
+                    <strong>iₜ = σ(W_i · hₜ₋₁ + U_i · xₜ + b_i)</strong>
+                </div>
+                <p style="margin-top:8px;"><strong>Pourquoi :</strong> Détermine quelle <span style="color:#22c55e;">nouvelle information</span> doit être ajoutée au Cell State. La sigmoid contrôle l'importance des nouvelles valeurs candidates.</p>
+            </div>
+
+            <div style="background:#fefce8;padding:15px;border-radius:10px;margin:15px 0;border-left:4px solid #eab308;">
+                <h5 style="color:#854d0e;margin-bottom:8px;">3️⃣ Candidate Values (Valeurs Candidates) - ĉₜ</h5>
+                <div style="font-family:'Courier New',monospace;background:#fff;padding:12px;border-radius:8px;margin:8px 0;font-size:15px;">
+                    <strong>ĉₜ = tanh(W_c · hₜ₋₁ + U_c · xₜ + b_c)</strong>
+                </div>
+                <p style="margin-top:8px;"><strong>Pourquoi :</strong> Génère les <span style="color:#eab308;">nouvelles valeurs candidates</span> qui pourraient être ajoutées au Cell State. Tanh produit des valeurs entre -1 et 1, permettant des mises à jour positives et négatives. Ces valeurs sont ensuite filtrées par l'Input Gate.</p>
+            </div>
+
+            <div style="background:#fff7ed;padding:15px;border-radius:10px;margin:15px 0;border-left:4px solid #f97316;">
+                <h5 style="color:#9a3412;margin-bottom:8px;">4️⃣ Cell State Update (Mise à jour du Cell State) - Cₜ</h5>
+                <div style="font-family:'Courier New',monospace;background:#fff;padding:12px;border-radius:8px;margin:8px 0;font-size:15px;">
+                    <strong>Cₜ = fₜ ⊙ Cₜ₋₁ + iₜ ⊙ ĉₜ</strong><br>
+                    <span style="font-size:13px;color:#666;">où ⊙ = multiplication élément par élément</span>
+                </div>
+                <p style="margin-top:8px;"><strong>Pourquoi :</strong> C'est le <span style="color:#f97316;">cœur de la mémoire LSTM</span> ! Cette formule combine deux opérations :</p>
+                <ul style="margin-left:20px;margin-top:8px;">
+                    <li><strong>fₜ ⊙ Cₜ₋₁ :</strong> Oublie sélectivement l'ancien Cell State</li>
+                    <li><strong>iₜ ⊙ ĉₜ :</strong> Ajoute sélectivement de nouvelles informations</li>
+                </ul>
+                <p style="margin-top:8px;">Le Cell State peut transporter l'information sur de très longues séquences sans dégradation, résolvant le problème de la disparition du gradient.</p>
+            </div>
+
+            <div style="background:#eff6ff;padding:15px;border-radius:10px;margin:15px 0;border-left:4px solid #3b82f6;">
+                <h5 style="color:#1e40af;margin-bottom:8px;">5️⃣ Output Gate (Porte de Sortie) - oₜ</h5>
+                <div style="font-family:'Courier New',monospace;background:#fff;padding:12px;border-radius:8px;margin:8px 0;font-size:15px;">
+                    <strong>oₜ = σ(W_o · hₜ₋₁ + U_o · xₜ + b_o)</strong>
+                </div>
+                <p style="margin-top:8px;"><strong>Pourquoi :</strong> Détermine quelle partie du Cell State doit être <span style="color:#3b82f6;">exposée</span> comme Hidden State. Cela permet à LSTM de décider quelles informations sont pertinentes pour le timestep actuel.</p>
+            </div>
+
+            <div style="background:#f3e8ff;padding:15px;border-radius:10px;margin:15px 0;border-left:4px solid #a855f7;">
+                <h5 style="color:#6b21a8;margin-bottom:8px;">6️⃣ Hidden State (État Caché) - hₜ</h5>
+                <div style="font-family:'Courier New',monospace;background:#fff;padding:12px;border-radius:8px;margin:8px 0;font-size:15px;">
+                    <strong>hₜ = oₜ ⊙ tanh(Cₜ)</strong>
+                </div>
+                <p style="margin-top:8px;"><strong>Pourquoi :</strong> Le Hidden State est la <span style="color:#a855f7;">sortie visible</span> de la cellule LSTM. Il est calculé en filtrant le Cell State (via tanh pour normaliser entre -1 et 1) puis en le multipliant par l'Output Gate. Ce hₜ sera utilisé comme hₜ₋₁ pour le prochain timestep et peut être utilisé pour faire des prédictions.</p>
+            </div>
+        </div>
+
+        <div style="margin:20px 0;padding:15px;background:rgba(139,92,246,0.1);border-radius:10px;border-left:4px solid #8b5cf6;">
+            <h4 style="color:#6b21a8;margin-bottom:10px;">🔄 Flux de Données</h4>
+            <p><strong>Entrées :</strong></p>
+            <ul style="margin-left:20px;margin-top:5px;">
+                <li><strong>Cₜ₋₁ :</strong> Cell State précédent (mémoire à long terme)</li>
+                <li><strong>hₜ₋₁ :</strong> Hidden State précédent (utilisé dans toutes les portes)</li>
+                <li><strong>xₜ :</strong> Input actuel (nouvelle information)</li>
+            </ul>
+            <p style="margin-top:10px;"><strong>Sorties :</strong></p>
+            <ul style="margin-left:20px;margin-top:5px;">
+                <li><strong>Cₜ :</strong> Nouveau Cell State (sera Cₜ₋₁ pour le prochain timestep)</li>
+                <li><strong>hₜ :</strong> Nouveau Hidden State (sera hₜ₋₁ pour le prochain timestep et peut être utilisé pour prédictions)</li>
+            </ul>
+        </div>
+
+        <div style="margin:20px 0;padding:15px;background:rgba(16,185,129,0.1);border-radius:10px;border-left:4px solid #10b981;">
+            <h4 style="color:#047857;margin-bottom:10px;">💡 Pourquoi LSTM est Puissant</h4>
+            <ul style="margin-left:20px;">
+                <li><strong>Mémoire à long terme :</strong> Le Cell State peut transporter l'information sur des centaines de timesteps</li>
+                <li><strong>Contrôle sélectif :</strong> Les portes permettent d'oublier, d'ajouter et d'exposer l'information de manière sélective</li>
+                <li><strong>Résout le problème du gradient :</strong> Le gradient peut circuler à travers le Cell State sans disparaître</li>
+                <li><strong>Flexibilité :</strong> Peut apprendre quelles informations sont importantes pour chaque contexte</li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="lstm-cell-container" id="lstm-cell" style="height:850px;">
+        <svg id="connections-svg" style="position:absolute;top:0;left:0;width:100%;height:100%;z-index:1;pointer-events:none;overflow:visible;">
+            <defs>
+                <marker id="arrowhead" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+                    <polygon points="0 0, 10 3, 0 6" fill="#3b82f6" />
+                </marker>
+                <marker id="arrowhead-orange" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+                    <polygon points="0 0, 10 3, 0 6" fill="#ea580c" />
+                </marker>
+                <marker id="arrowhead-green" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+                    <polygon points="0 0, 10 3, 0 6" fill="#4ade80" />
+                </marker>
+            </defs>
+            <!-- Connection lines drawn dynamically -->
+        </svg>
+
+        <!-- Section Labels -->
+        <div class="section-label" style="left:80px;top:30px;">ENTRÉES</div>
+        <div class="section-label" style="right:80px;top:30px;">SORTIES</div>
+
+        <!-- Input Nodes -->
+        <div class="node node-cell-prev" id="C-prev" style="left:60px;top:120px;">
+            <div style="font-size:20px;">C<sub>t-1</sub></div>
+            <div class="value">0.000</div>
+        </div>
+        <div class="node node-hidden-prev" id="h-prev" style="left:60px;top:300px;">
+            <div style="font-size:20px;">h<sub>t-1</sub></div>
+            <div class="value">0.000</div>
+        </div>
+        <div class="node node-input" id="X-t" style="left:60px;top:480px;">
+            <div style="font-size:20px;">X<sub>t</sub></div>
+            <div class="value">1.000</div>
+        </div>
+
+        <!-- Cell State Path -->
+        <div class="cell-state-path" id="cell-path" style="left:240px;top:145px;width:550px;"></div>
+
+        <!-- Forget Gate Section -->
+        <div class="section-label" style="left:280px;top:220px;font-size:11px;">FORGET GATE</div>
+        <div class="activation activation-sigmoid" id="sigmoid-f" style="left:280px;top:250px;"></div>
+        <div class="gate-box gate-forget" id="gate-f" style="left:390px;top:240px;">
+            <div style="font-size:16px;">f<sub>t</sub></div>
+            <div class="value" style="font-size:16px;margin-top:5px;">-</div>
+        </div>
+        <div class="operation operation-multiply" id="mult-f" style="left:530px;top:145px;"></div>
+
+        <!-- Input Gate Section -->
+        <div class="section-label" style="left:280px;top:390px;font-size:11px;">INPUT GATE</div>
+        <div class="activation activation-sigmoid" id="sigmoid-i" style="left:280px;top:420px;"></div>
+        <div class="gate-box gate-input" id="gate-i" style="left:390px;top:410px;">
+            <div style="font-size:16px;">i<sub>t</sub></div>
+            <div class="value" style="font-size:16px;margin-top:5px;">-</div>
+        </div>
+
+        <!-- Candidate Gate Section -->
+        <div class="section-label" style="left:280px;top:560px;font-size:11px;">CANDIDATE</div>
+        <div class="activation activation-tanh" id="tanh-c" style="left:280px;top:590px;"></div>
+        <div class="candidate-gate" id="gate-c" style="left:390px;top:580px;">
+            <div style="font-size:16px;">ĉ<sub>t</sub></div>
+            <div class="value" style="font-size:16px;margin-top:5px;">-</div>
+        </div>
+        <div class="operation operation-multiply" id="mult-i" style="left:530px;top:500px;"></div>
+
+        <!-- Add Operation -->
+        <div class="operation operation-add" id="add-C" style="left:640px;top:280px;"></div>
+
+        <!-- Output Gate Section -->
+        <div class="section-label" style="left:780px;top:390px;font-size:11px;">OUTPUT GATE</div>
+        <div class="activation activation-tanh" id="tanh-C" style="left:780px;top:250px;"></div>
+        <div class="activation activation-sigmoid" id="sigmoid-o" style="left:780px;top:420px;"></div>
+        <div class="gate-box gate-output" id="gate-o" style="left:890px;top:410px;">
+            <div style="font-size:16px;">o<sub>t</sub></div>
+            <div class="value" style="font-size:16px;margin-top:5px;">-</div>
+        </div>
+        <div class="operation operation-multiply" id="mult-o" style="left:1050px;top:305px;"></div>
+
+        <!-- Output Nodes -->
+        <div class="node node-output" id="C-t" style="right:60px;top:120px;">
+            <div style="font-size:20px;">C<sub>t</sub></div>
+            <div class="value">0.000</div>
+        </div>
+        <div class="node node-hidden-out" id="h-t" style="right:60px;top:300px;">
+            <div style="font-size:20px;">h<sub>t</sub></div>
+            <div class="value">0.000</div>
+        </div>
+    </div>
+
+    <div class="legend">
+        <div class="legend-item">
+            <div class="legend-box" style="background:#3b82f6;"></div>
+            <span>Sigmoid (σ)</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-box" style="background:#a855f7;"></div>
+            <span>Tanh</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-box" style="background:#ea580c;"></div>
+            <span>Cell State</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-box" style="background:#86efac;"></div>
+            <span>Gate (f, i, o)</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-box" style="background:#fcd34d;"></div>
+            <span>Candidate (ĉ)</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-box" style="background:#ea580c;border-radius:50%;"></div>
+            <span>Operation (×, +)</span>
+        </div>
+    </div>
+
+    <div class="controls">
+        <button onclick="reset()">🔄 Reset</button>
+        <button onclick="nextStep()" id="next-btn">Étape Suivante ▶</button>
+        <button onclick="animateAll()">⚡ Animer Tout</button>
+    </div>
+</div>
+
+<script>
+// LSTM Parameters
+const W_f = 0.5, U_f = 0.8, b_f = 0.1;
+const W_i = 0.5, U_i = 0.8, b_i = 0.1;
+const W_c = 0.5, U_c = 0.8, b_c = 0.0;
+const W_o = 0.5, U_o = 0.8, b_o = 0.1;
+
+let step = 0;
+let C_prev = 0.0;
+let h_prev = 0.0;
+let X_t = 1.0;
+
+const steps = [
+    'input', 'forget-sigmoid', 'forget-gate', 'forget-mult',
+    'input-sigmoid', 'input-gate', 'candidate-tanh', 'candidate-gate', 'candidate-mult',
+    'add-C', 'output-tanh', 'output-sigmoid', 'output-gate', 'output-mult', 'complete'
+];
+
+function sigmoid(x) { return 1 / (1 + Math.exp(-x)); }
+function tanh(x) { return Math.tanh(x); }
+
+function getElementCenter(id) {
+    const el = document.getElementById(id);
+    if(!el) return {x:0, y:0};
+    const rect = el.getBoundingClientRect();
+    const container = document.getElementById('lstm-cell');
+    const containerRect = container.getBoundingClientRect();
+    return {
+        x: rect.left - containerRect.left + rect.width / 2,
+        y: rect.top - containerRect.top + rect.height / 2
+    };
+}
+
+function drawConnection(id, from, to, color = '#3b82f6', marker = 'arrowhead') {
+    const svg = document.getElementById('connections-svg');
+    const fromPos = getElementCenter(from);
+    const toPos = getElementCenter(to);
+    
+    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    line.setAttribute('id', id);
+    line.setAttribute('x1', fromPos.x);
+    line.setAttribute('y1', fromPos.y);
+    line.setAttribute('x2', toPos.x);
+    line.setAttribute('y2', toPos.y);
+    line.setAttribute('stroke', color);
+    line.setAttribute('stroke-width', '4');
+    line.setAttribute('stroke-dasharray', '10,5');
+    line.setAttribute('class', 'flow-line');
+    line.setAttribute('marker-end', `url(#${marker})`);
+    line.setAttribute('opacity', '0');
+    
+    svg.appendChild(line);
+    return line;
+}
+
+function showConnection(id) {
+    const line = document.getElementById(id);
+    if(line) {
+        line.classList.add('active');
+        line.setAttribute('opacity', '1');
+    }
+}
+
+function hideConnection(id) {
+    const line = document.getElementById(id);
+    if(line) {
+        line.classList.remove('active');
+        line.setAttribute('opacity', '0');
+    }
+}
+
+function clearConnections() {
+    const svg = document.getElementById('connections-svg');
+    const lines = svg.querySelectorAll('.flow-line');
+    lines.forEach(line => line.remove());
+}
+
+function drawCurvedConnection(id, from, to, color = '#3b82f6', marker = 'arrowhead', curvature = 0) {
+    const svg = document.getElementById('connections-svg');
+    const fromPos = getElementCenter(from);
+    const toPos = getElementCenter(to);
+    
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    const midX = (fromPos.x + toPos.x) / 2;
+    const midY = (fromPos.y + toPos.y) / 2;
+    const controlY = midY + curvature;
+    
+    const d = `M ${fromPos.x} ${fromPos.y} Q ${midX} ${controlY} ${toPos.x} ${toPos.y}`;
+    
+    path.setAttribute('id', id);
+    path.setAttribute('d', d);
+    path.setAttribute('stroke', color);
+    path.setAttribute('stroke-width', '4');
+    path.setAttribute('stroke-dasharray', '10,5');
+    path.setAttribute('fill', 'none');
+    path.setAttribute('class', 'flow-line');
+    path.setAttribute('marker-end', `url(#${marker})`);
+    path.setAttribute('opacity', '0');
+    
+    svg.appendChild(path);
+    return path;
+}
+
+function initializeConnections() {
+    clearConnections();
+    
+    // Wait a bit for elements to be positioned
+    setTimeout(() => {
+        // h_t-1 and X_t to gates (combined input) - curved lines
+        drawCurvedConnection('conn-h-to-forget', 'h-prev', 'sigmoid-f', '#f59e0b', 'arrowhead-green', -50);
+        drawCurvedConnection('conn-x-to-forget', 'X-t', 'sigmoid-f', '#3b82f6', 'arrowhead', 30);
+        drawCurvedConnection('conn-h-to-input', 'h-prev', 'sigmoid-i', '#f59e0b', 'arrowhead-green', 0);
+        drawCurvedConnection('conn-x-to-input', 'X-t', 'sigmoid-i', '#3b82f6', 'arrowhead', 30);
+        drawCurvedConnection('conn-h-to-candidate', 'h-prev', 'tanh-c', '#f59e0b', 'arrowhead-green', 50);
+        drawCurvedConnection('conn-x-to-candidate', 'X-t', 'tanh-c', '#3b82f6', 'arrowhead', 30);
+        drawCurvedConnection('conn-h-to-output', 'h-prev', 'sigmoid-o', '#f59e0b', 'arrowhead-green', 0);
+        drawCurvedConnection('conn-x-to-output', 'X-t', 'sigmoid-o', '#3b82f6', 'arrowhead', 30);
+        
+        // Sigmoid to gates - straight lines
+        drawConnection('conn-sigmoid-f-to-gate', 'sigmoid-f', 'gate-f', '#4ade80', 'arrowhead-green');
+        drawConnection('conn-sigmoid-i-to-gate', 'sigmoid-i', 'gate-i', '#4ade80', 'arrowhead-green');
+        drawConnection('conn-sigmoid-o-to-gate', 'sigmoid-o', 'gate-o', '#4ade80', 'arrowhead-green');
+        
+        // Tanh to candidate
+        drawConnection('conn-tanh-c-to-gate', 'tanh-c', 'gate-c', '#a855f7', 'arrowhead');
+        
+        // Forget gate flow - curved
+        drawCurvedConnection('conn-gate-f-to-mult', 'gate-f', 'mult-f', '#ea580c', 'arrowhead-orange', -80);
+        drawConnection('conn-Cprev-to-mult-f', 'C-prev', 'mult-f', '#ea580c', 'arrowhead-orange');
+        
+        // Input gate flow - curved
+        drawCurvedConnection('conn-gate-i-to-mult-i', 'gate-i', 'mult-i', '#ea580c', 'arrowhead-orange', 80);
+        drawCurvedConnection('conn-gate-c-to-mult-i', 'gate-c', 'mult-i', '#ea580c', 'arrowhead-orange', -80);
+        
+        // Add operation
+        drawConnection('conn-mult-f-to-add', 'mult-f', 'add-C', '#ea580c', 'arrowhead-orange');
+        drawConnection('conn-mult-i-to-add', 'mult-i', 'add-C', '#ea580c', 'arrowhead-orange');
+        
+        // Output flow
+        drawConnection('conn-add-to-Ct', 'add-C', 'C-t', '#ea580c', 'arrowhead-orange');
+        drawCurvedConnection('conn-Ct-to-tanh', 'add-C', 'tanh-C', '#ea580c', 'arrowhead-orange', -100);
+        drawConnection('conn-tanh-C-to-mult-o', 'tanh-C', 'mult-o', '#a855f7', 'arrowhead');
+        drawCurvedConnection('conn-gate-o-to-mult-o', 'gate-o', 'mult-o', '#ea580c', 'arrowhead-orange', 80);
+        drawConnection('conn-mult-o-to-ht', 'mult-o', 'h-t', '#f59e0b', 'arrowhead-green');
+    }, 200);
+}
+
+function reset() {
+    step = 0;
+    C_prev = 0.0;
+    h_prev = 0.0;
+    X_t = 1.0;
+    
+    document.querySelectorAll('.node, .gate-box, .activation, .operation, .candidate-gate, .cell-state-path').forEach(el => {
+        el.classList.remove('active');
+    });
+    
+    clearConnections();
+    initializeConnections();
+    
+    document.getElementById('C-prev').querySelector('.value').textContent = '0.000';
+    document.getElementById('h-prev').querySelector('.value').textContent = '0.000';
+    document.getElementById('X-t').querySelector('.value').textContent = '1.000';
+    document.getElementById('C-t').querySelector('.value').textContent = '0.000';
+    document.getElementById('h-t').querySelector('.value').textContent = '0.000';
+    
+    ['gate-f', 'gate-i', 'gate-o', 'gate-c'].forEach(id => {
+        document.getElementById(id).querySelector('.value').textContent = '-';
+    });
+    
+    document.getElementById('next-btn').disabled = false;
+}
+
+function calculateLSTM() {
+    const z_f = W_f * h_prev + U_f * X_t + b_f;
+    const f_t = sigmoid(z_f);
+    
+    const z_i = W_i * h_prev + U_i * X_t + b_i;
+    const i_t = sigmoid(z_i);
+    
+    const z_c = W_c * h_prev + U_c * X_t + b_c;
+    const c_hat = tanh(z_c);
+    
+    const C_t = f_t * C_prev + i_t * c_hat;
+    
+    const z_o = W_o * h_prev + U_o * X_t + b_o;
+    const o_t = sigmoid(z_o);
+    
+    const h_t = o_t * tanh(C_t);
+    
+    return { f_t, i_t, c_hat, C_t, o_t, h_t };
+}
+
+function nextStep() {
+    if(step >= steps.length) {
+        document.getElementById('next-btn').disabled = true;
+        return;
+    }
+    
+    const details = calculateLSTM();
+    const currentStep = steps[step];
+    
+    // Always show inputs
+    document.getElementById('C-prev').classList.add('active');
+    document.getElementById('h-prev').classList.add('active');
+    document.getElementById('X-t').classList.add('active');
+    
+    switch(currentStep) {
+        case 'forget-sigmoid':
+            document.getElementById('sigmoid-f').classList.add('active');
+            showConnection('conn-h-to-forget');
+            showConnection('conn-x-to-forget');
+            break;
+        case 'forget-gate':
+            document.getElementById('gate-f').classList.add('active');
+            document.getElementById('gate-f').querySelector('.value').textContent = details.f_t.toFixed(3);
+            showConnection('conn-sigmoid-f-to-gate');
+            break;
+        case 'forget-mult':
+            document.getElementById('mult-f').classList.add('active');
+            document.getElementById('cell-path').classList.add('active');
+            showConnection('conn-gate-f-to-mult');
+            showConnection('conn-Cprev-to-mult-f');
+            break;
+        case 'input-sigmoid':
+            document.getElementById('sigmoid-i').classList.add('active');
+            showConnection('conn-h-to-input');
+            showConnection('conn-x-to-input');
+            break;
+        case 'input-gate':
+            document.getElementById('gate-i').classList.add('active');
+            document.getElementById('gate-i').querySelector('.value').textContent = details.i_t.toFixed(3);
+            showConnection('conn-sigmoid-i-to-gate');
+            break;
+        case 'candidate-tanh':
+            document.getElementById('tanh-c').classList.add('active');
+            showConnection('conn-h-to-candidate');
+            showConnection('conn-x-to-candidate');
+            break;
+        case 'candidate-gate':
+            document.getElementById('gate-c').classList.add('active');
+            document.getElementById('gate-c').querySelector('.value').textContent = details.c_hat.toFixed(3);
+            showConnection('conn-tanh-c-to-gate');
+            break;
+        case 'candidate-mult':
+            document.getElementById('mult-i').classList.add('active');
+            showConnection('conn-gate-i-to-mult-i');
+            showConnection('conn-gate-c-to-mult-i');
+            break;
+        case 'add-C':
+            document.getElementById('add-C').classList.add('active');
+            showConnection('conn-mult-f-to-add');
+            showConnection('conn-mult-i-to-add');
+            break;
+        case 'output-tanh':
+            document.getElementById('tanh-C').classList.add('active');
+            document.getElementById('C-t').classList.add('active');
+            document.getElementById('C-t').querySelector('.value').textContent = details.C_t.toFixed(3);
+            showConnection('conn-add-to-Ct');
+            showConnection('conn-Ct-to-tanh');
+            break;
+        case 'output-sigmoid':
+            document.getElementById('sigmoid-o').classList.add('active');
+            showConnection('conn-h-to-output');
+            showConnection('conn-x-to-output');
+            break;
+        case 'output-gate':
+            document.getElementById('gate-o').classList.add('active');
+            document.getElementById('gate-o').querySelector('.value').textContent = details.o_t.toFixed(3);
+            showConnection('conn-sigmoid-o-to-gate');
+            break;
+        case 'output-mult':
+            document.getElementById('mult-o').classList.add('active');
+            showConnection('conn-tanh-C-to-mult-o');
+            showConnection('conn-gate-o-to-mult-o');
+            break;
+        case 'complete':
+            document.getElementById('h-t').classList.add('active');
+            document.getElementById('h-t').querySelector('.value').textContent = details.h_t.toFixed(3);
+            
+            C_prev = details.C_t;
+            h_prev = details.h_t;
+            X_t = 0.5;
+            
+            setTimeout(() => {
+                reset();
+                document.getElementById('C-prev').querySelector('.value').textContent = C_prev.toFixed(3);
+                document.getElementById('h-prev').querySelector('.value').textContent = h_prev.toFixed(3);
+                document.getElementById('X-t').querySelector('.value').textContent = X_t.toFixed(3);
+            }, 1500);
+            break;
+    }
+    
+    step++;
+}
+
+function animateAll() {
+    reset();
+    let delay = 0;
+    steps.forEach((s, idx) => {
+        setTimeout(() => {
+            step = idx;
+            nextStep();
+        }, delay);
+        delay += 600;
+    });
+}
+
+// Keyboard navigation
+document.addEventListener('keydown', function(event) {
+    if(event.target.tagName === 'INPUT') return;
+    if(event.key === 'ArrowRight' || event.key === 'ArrowDown') {
+        event.preventDefault();
+        nextStep();
+    }
+});
+
+// Initialize connections when page loads
+window.addEventListener('load', function() {
+    setTimeout(() => {
+        initializeConnections();
+        reset();
+    }, 100);
+});
+
+// Initialize
+reset();
+</script>
+
+</body>
+</html>

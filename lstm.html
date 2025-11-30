@@ -1,0 +1,823 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>LSTM — Schématisation Interactive</title>
+
+<style>
+    *{margin:0;padding:0;box-sizing:border-box;}
+    body{
+        font-family:'Segoe UI',Arial,sans-serif;
+        background:linear-gradient(135deg, #0d1117 0%, #1a1f2e 100%);
+        color:#fff;padding:20px;min-height:100vh;
+    }
+    h1{color:#7dd3fc;text-align:center;margin-bottom:10px;font-size:32px;}
+    .subtitle{text-align:center;color:#9ca3af;margin-bottom:30px;font-size:14px;}
+
+    /* Input Section */
+    .input-section{
+        background:rgba(26,31,46,0.8);padding:25px;border-radius:15px;
+        margin:0 auto 30px;max-width:1200px;backdrop-filter:blur(10px);
+        border:1px solid rgba(125,211,252,0.2);
+    }
+    .input-grid{
+        display:grid;grid-template-columns:repeat(auto-fit, minmax(200px,1fr));
+        gap:15px;margin-top:15px;
+    }
+    .input-group label{
+        display:block;color:#7dd3fc;font-size:13px;margin-bottom:8px;font-weight:600;
+    }
+    .input-group input{
+        width:100%;padding:10px;border-radius:8px;border:2px solid #06b6d4;
+        background:#0d1117;color:#fff;font-size:15px;text-align:center;
+        transition:all 0.3s;
+    }
+    .input-group input:focus{outline:none;border-color:#7dd3fc;box-shadow:0 0 10px rgba(125,211,252,0.3);}
+
+    /* Main Container */
+    .main-container{
+        max-width:1400px;margin:0 auto;
+    }
+    .lstm-unrolled{
+        display:flex;gap:30px;justify-content:center;align-items:flex-start;
+        flex-wrap:wrap;margin:30px 0;
+    }
+
+    /* Single LSTM Cell */
+    .lstm-cell{
+        background:rgba(26,31,46,0.6);border-radius:20px;padding:25px;
+        border:2px solid rgba(125,211,252,0.2);min-width:350px;
+        position:relative;transition:all 0.3s;
+    }
+    .lstm-cell.active{border-color:#00ff00;box-shadow:0 0 25px rgba(0,255,0,0.3);}
+
+    /* Input Node */
+    .input-node{
+        width:80px;height:80px;border-radius:50%;
+        background:linear-gradient(135deg, #a5f3fc 0%, #06b6d4 100%);
+        border:4px solid #0891b2;
+        display:flex;flex-direction:column;align-items:center;justify-content:center;
+        margin:0 auto 20px;font-weight:bold;color:#022c22;transition:all 0.3s;
+        box-shadow:0 4px 15px rgba(6,182,212,0.3);
+    }
+    .input-node.active{
+        transform:scale(1.1);box-shadow:0 0 25px rgba(0,255,0,0.6);
+        border-color:#00ff00;
+    }
+    .input-node .label{font-size:11px;opacity:0.8;margin-bottom:3px;}
+    .input-node .value{font-size:18px;}
+
+    /* Gates Container */
+    .gates-row{
+        display:flex;justify-content:space-around;gap:10px;margin:20px 0;
+        flex-wrap:wrap;
+    }
+    
+    /* Gate Box */
+    .gate{
+        width:75px;height:75px;border-radius:12px;
+        display:flex;flex-direction:column;align-items:center;justify-content:center;
+        font-weight:bold;color:#000;border:3px solid transparent;
+        transition:all 0.4s;position:relative;
+        box-shadow:0 4px 12px rgba(0,0,0,0.3);
+    }
+    .gate.active{
+        transform:scale(1.15);box-shadow:0 0 25px rgba(0,255,0,0.7);
+        border-color:#00ff00;
+    }
+    .gate .label{font-size:11px;margin-bottom:3px;opacity:0.9;}
+    .gate .value{font-size:16px;font-weight:800;}
+    
+    .gate-forget{background:linear-gradient(135deg, #ff7b7b 0%, #ff5252 100%);}
+    .gate-input{background:linear-gradient(135deg, #7ce59a 0%, #4ade80 100%);}
+    .gate-candidate{background:linear-gradient(135deg, #ffd97a 0%, #fbbf24 100%);}
+    .gate-output{background:linear-gradient(135deg, #79a7ff 0%, #3b82f6 100%);}
+
+    /* Cell State */
+    .cell-state-box{
+        width:100%;height:90px;background:linear-gradient(135deg, #ffd97a 0%, #f59e0b 100%);
+        border-radius:12px;display:flex;flex-direction:column;
+        align-items:center;justify-content:center;margin:20px 0;
+        border:4px solid transparent;transition:all 0.4s;
+        box-shadow:0 4px 15px rgba(245,158,11,0.3);
+        position:relative;
+    }
+    .cell-state-box.active{
+        border-color:#00ff00;box-shadow:0 0 30px rgba(0,255,0,0.6);
+        transform:scale(1.05);
+    }
+    .cell-state-box .label{font-size:12px;opacity:0.8;margin-bottom:5px;color:#78350f;font-weight:600;}
+    .cell-state-box .value{font-size:20px;color:#78350f;font-weight:800;}
+
+    /* Hidden State */
+    .hidden-state-box{
+        width:100px;height:100px;border-radius:15px;
+        background:linear-gradient(135deg, #c8b6ff 0%, #a78bfa 100%);
+        border:4px solid #8b5cf6;
+        display:flex;flex-direction:column;align-items:center;justify-content:center;
+        margin:20px auto 0;font-weight:bold;color:#1e1b4b;transition:all 0.4s;
+        box-shadow:0 4px 15px rgba(139,92,246,0.3);
+        position:relative;
+    }
+    .hidden-state-box.active{
+        transform:scale(1.1);box-shadow:0 0 30px rgba(0,255,0,0.6);
+        border-color:#00ff00;
+    }
+    .hidden-state-box .label{font-size:12px;opacity:0.8;margin-bottom:5px;}
+    .hidden-state-box .value{font-size:20px;font-weight:800;}
+
+    /* Previous States */
+    .prev-states{
+        display:flex;justify-content:space-between;margin-bottom:20px;
+        gap:15px;
+    }
+    .prev-state{
+        flex:1;background:rgba(125,211,252,0.1);border-radius:12px;
+        padding:15px;border:2px solid rgba(125,211,252,0.3);
+        text-align:center;transition:all 0.3s;
+    }
+    .prev-state.highlight{
+        border-color:#ff6b6b;background:rgba(255,107,107,0.2);
+        box-shadow:0 0 20px rgba(255,107,107,0.5);
+        transform:scale(1.05);
+    }
+    .prev-state .label{font-size:11px;color:#7dd3fc;margin-bottom:5px;opacity:0.8;}
+    .prev-state .value{font-size:16px;font-weight:bold;color:#fff;}
+
+    /* Connection Lines */
+    .connection-line{
+        position:absolute;background:#7dd3fc;height:3px;z-index:1;
+        transition:all 0.4s;opacity:0;
+    }
+    .connection-line.active{
+        opacity:1;box-shadow:0 0 10px #7dd3fc;
+    }
+    .connection-arrow{
+        position:absolute;width:0;height:0;
+        border-left:8px solid #7dd3fc;
+        border-top:5px solid transparent;
+        border-bottom:5px solid transparent;
+    }
+
+    /* Recurrent Arrows */
+    .recurrent-arrow{
+        position:absolute;width:50px;height:4px;
+        background:#ff6b6b;z-index:5;
+        transition:all 0.4s;opacity:0;
+    }
+    .recurrent-arrow::before{
+        content:'';position:absolute;right:-10px;top:-6px;
+        width:0;height:0;border-left:12px solid #ff6b6b;
+        border-top:8px solid transparent;
+        border-bottom:8px solid transparent;
+    }
+    .recurrent-arrow.active{
+        opacity:1;box-shadow:0 0 15px #ff6b6b;
+        animation:pulse 1.5s ease-in-out infinite;
+    }
+    @keyframes pulse{
+        0%,100%{opacity:1;}
+        50%{opacity:0.7;}
+    }
+
+    /* Inactive State */
+    .inactive{opacity:0.3;filter:blur(1px);}
+
+    /* Buttons */
+    .controls{
+        text-align:center;margin:30px 0;
+    }
+    button{
+        padding:14px 35px;border:none;border-radius:10px;
+        font-size:18px;font-weight:bold;cursor:pointer;
+        transition:all 0.3s;margin:0 10px;
+        box-shadow:0 4px 12px rgba(0,0,0,0.3);
+    }
+    button:hover{transform:translateY(-2px);box-shadow:0 6px 20px rgba(0,0,0,0.4);}
+    button:active{transform:translateY(0);}
+    .btn-primary{
+        background:linear-gradient(135deg, #06b6d4 0%, #0891b2 100%);
+        color:#fff;
+    }
+    .btn-secondary{
+        background:linear-gradient(135deg, #7dd3fc 0%, #06b6d4 100%);
+        color:#022c22;
+    }
+    .btn-success{
+        background:linear-gradient(135deg, #4ade80 0%, #22c55e 100%);
+        color:#fff;
+    }
+    button:disabled{opacity:0.5;cursor:not-allowed;transform:none;}
+
+    /* Calculation Panel */
+    .calculation-panel{
+        background:rgba(26,31,46,0.8);border-radius:15px;padding:25px;
+        margin:30px auto;max-width:1200px;border:2px solid rgba(125,211,252,0.2);
+    }
+    .calculation-panel h3{
+        color:#7dd3fc;margin-bottom:15px;text-align:center;
+    }
+    .calculation-step{
+        background:#0d1117;border-radius:10px;padding:15px;margin:10px 0;
+        border-left:5px solid #06b6d4;font-family:'Courier New',monospace;
+        font-size:13px;line-height:1.8;
+    }
+    .calculation-step .highlight{
+        color:#ff6b6b;font-weight:bold;
+    }
+    .calculation-step .value{
+        color:#d9f99d;font-weight:bold;
+    }
+
+    /* Legend */
+    .legend{
+        display:flex;justify-content:center;gap:20px;flex-wrap:wrap;
+        margin:20px 0;padding:15px;background:rgba(26,31,46,0.6);
+        border-radius:10px;
+    }
+    .legend-item{
+        display:flex;align-items:center;gap:8px;font-size:13px;
+    }
+    .legend-color{
+        width:20px;height:20px;border-radius:5px;border:2px solid rgba(255,255,255,0.3);
+    }
+
+    /* Previous Values Panel */
+    .prev-values-panel{
+        background:rgba(255,107,107,0.15);border-radius:15px;padding:20px;
+        margin:20px auto;max-width:800px;border:2px solid rgba(255,107,107,0.4);
+        display:none;
+    }
+    .prev-values-panel.active{display:block;}
+    .prev-values-panel h4{
+        color:#ff6b6b;margin-bottom:15px;text-align:center;font-size:16px;
+    }
+    .prev-value-item{
+        background:rgba(255,107,107,0.1);border-radius:10px;padding:12px;
+        margin:8px 0;border-left:4px solid #ff6b6b;font-size:13px;
+        display:flex;justify-content:space-between;align-items:center;
+    }
+    .prev-value-item .label{color:#ff6b6b;font-weight:bold;}
+    .prev-value-item .usage{color:#d9f99d;font-family:'Courier New',monospace;}
+
+    /* Value Flow Indicator */
+    .value-flow{
+        position:absolute;background:rgba(255,107,107,0.6);padding:5px 10px;
+        border-radius:5px;font-size:11px;color:#fff;font-weight:bold;
+        z-index:20;pointer-events:none;white-space:nowrap;
+        box-shadow:0 2px 10px rgba(255,107,107,0.5);
+        animation:float 2s ease-in-out infinite;
+    }
+    @keyframes float{
+        0%,100%{transform:translateY(0);}
+        50%{transform:translateY(-5px);}
+    }
+
+    /* Connection Line */
+    .connection-path{
+        position:absolute;height:2px;background:linear-gradient(90deg, #ff6b6b, #ff9999);
+        z-index:1;pointer-events:none;opacity:0;transition:opacity 0.4s;
+        box-shadow:0 0 8px rgba(255,107,107,0.6);
+    }
+    .connection-path.active{opacity:1;}
+    .connection-path::after{
+        content:'';position:absolute;right:-6px;top:-4px;
+        width:0;height:0;border-left:10px solid #ff6b6b;
+        border-top:6px solid transparent;border-bottom:6px solid transparent;
+    }
+</style>
+</head>
+<body>
+
+<h1>🧠 LSTM — Schématisation Interactive</h1>
+<p class="subtitle">Visualisation étape par étape du calcul d'une cellule LSTM avec valeurs réelles</p>
+
+<div class="input-section">
+    <h3 style="color:#7dd3fc;margin-bottom:15px;text-align:center;">📥 Entrées</h3>
+    <div class="input-grid">
+        <div class="input-group">
+            <label>Input x₁:</label>
+            <input type="number" id="x1-input" value="1.0" step="0.1">
+            </div>
+        <div class="input-group">
+            <label>Input x₂:</label>
+            <input type="number" id="x2-input" value="0.5" step="0.1">
+              </div>
+        <div class="input-group">
+            <label>Input x₃:</label>
+            <input type="number" id="x3-input" value="0.8" step="0.1">
+        </div>
+        <div class="input-group">
+            <label>Input x₄:</label>
+            <input type="number" id="x4-input" value="0.3" step="0.1">
+        </div>
+      </div>
+          </div>
+
+<div class="legend">
+    <div class="legend-item">
+        <div class="legend-color" style="background:#ff7b7b;"></div>
+        <span>Forget Gate</span>
+          </div>
+    <div class="legend-item">
+        <div class="legend-color" style="background:#7ce59a;"></div>
+        <span>Input Gate</span>
+          </div>
+    <div class="legend-item">
+        <div class="legend-color" style="background:#ffd97a;"></div>
+        <span>Candidate</span>
+          </div>
+    <div class="legend-item">
+        <div class="legend-color" style="background:#79a7ff;"></div>
+        <span>Output Gate</span>
+          </div>
+    <div class="legend-item">
+        <div class="legend-color" style="background:#ffd97a;"></div>
+        <span>Cell State</span>
+          </div>
+    <div class="legend-item">
+        <div class="legend-color" style="background:#c8b6ff;"></div>
+        <span>Hidden State</span>
+        </div>
+      </div>
+
+<div class="main-container">
+    <div class="lstm-unrolled" id="lstm-container">
+        <!-- LSTM cells will be generated here -->
+    </div>
+</div>
+
+<div class="controls">
+    <button class="btn-secondary" onclick="reset()">🔄 Reset</button>
+    <button class="btn-primary" onclick="next()" id="next-btn">Étape Suivante ▶</button>
+    <button class="btn-success" onclick="calculateAll()">⚡ Calculer Tout</button>
+</div>
+<p style="text-align:center;color:#9ca3af;font-size:13px;margin-top:10px;">
+    💡 Utilisez les flèches <strong>→</strong> ou <strong>↓</strong> du clavier pour naviguer
+</p>
+
+<div class="prev-values-panel" id="prev-values-panel">
+    <h4>🔄 Utilisation des Valeurs de t-1 (États Précédents)</h4>
+    <div id="prev-values-content"></div>
+    </div>
+
+<div class="calculation-panel" id="calculation-panel" style="display:none;">
+    <h3>📊 Calcul Détaillé</h3>
+    <div id="calculation-content"></div>
+  </div>
+
+<script>
+// LSTM Parameters
+const W_f = 0.5, U_f = 0.8, b_f = 0.1;
+const W_i = 0.5, U_i = 0.8, b_i = 0.1;
+const W_c = 0.5, U_c = 0.8, b_c = 0.0;
+const W_o = 0.5, U_o = 0.8, b_o = 0.1;
+
+let step = 0;
+let substep = 0;
+let inputs = [];
+let hiddenStates = [0];
+let cellStates = [0];
+let currentDetails = null;
+let currentIndex = 0;
+let stepHistory = []; // Store history for back navigation
+let currentStepIndex = -1; // Track position in history
+
+function sigmoid(x) { return 1 / (1 + Math.exp(-x)); }
+function tanh(x) { return Math.tanh(x); }
+
+function reset() {
+    step = 0;
+    substep = 0;
+    inputs = [];
+    hiddenStates = [0];
+    cellStates = [0];
+    currentDetails = null;
+    currentIndex = 0;
+    stepHistory = [];
+    currentStepIndex = -1;
+    
+    // Reset all cells
+    for(let i = 1; i <= 4; i++) {
+        resetCell(i);
+    }
+    
+    // Reset h0 and C0
+    const h0 = document.getElementById('h0');
+    const C0 = document.getElementById('C0');
+    if(h0) h0.querySelector('.value').textContent = '0.000';
+    if(C0) C0.querySelector('.value').textContent = '0.000';
+    if(h0) { h0.classList.remove('highlight'); }
+    if(C0) { C0.classList.remove('highlight'); }
+    
+    document.getElementById("calculation-panel").style.display = "none";
+    document.getElementById("prev-values-panel").classList.remove('active');
+    document.getElementById("next-btn").disabled = false;
+}
+
+function resetCell(index) {
+    const cells = ['x','f','i','c','o','C','h'];
+    cells.forEach(cell => {
+        const id = `${cell}${index}`;
+        const el = document.getElementById(id);
+        if(el) {
+            el.classList.add('inactive');
+            el.classList.remove('active');
+            if(cell === 'C' || cell === 'h') {
+                el.querySelector('.value').textContent = '-';
+            } else if(cell === 'x') {
+                el.querySelector('.value').textContent = '-';
+            } else {
+                el.querySelector('.value').textContent = '-';
+            }
+        }
+    });
+    
+    // Reset arrows
+    ['h', 'C'].forEach(state => {
+        const arrow = document.getElementById(`arrow-${state}${index}`);
+        if(arrow) arrow.classList.remove('active');
+    });
+}
+
+function updateElement(id, value, active) {
+    const el = document.getElementById(id);
+    if(!el) {
+        console.warn(`Element with id ${id} not found`);
+      return;
+    }
+    
+    const valueEl = el.querySelector('.value');
+    if(valueEl) {
+        if(typeof value === 'number') {
+            valueEl.textContent = (Math.abs(value) < 0.001) ? '0.000' : value.toFixed(3);
+        } else {
+            valueEl.textContent = value;
+        }
+    }
+    
+    if(active) {
+        el.classList.remove('inactive');
+        el.classList.add('active');
+    } else {
+        el.classList.remove('active');
+        if(id !== 'h0' && id !== 'C0') {
+            el.classList.add('inactive');
+        }
+    }
+}
+
+function getInputs() {
+    return [
+        parseFloat(document.getElementById("x1-input").value) || 0,
+        parseFloat(document.getElementById("x2-input").value) || 0,
+        parseFloat(document.getElementById("x3-input").value) || 0,
+        parseFloat(document.getElementById("x4-input").value) || 0
+    ];
+}
+
+function calculateLSTMStep(x_t, h_prev, C_prev) {
+    const z_f = W_f * h_prev + U_f * x_t + b_f;
+    const f_t = sigmoid(z_f);
+    
+    const z_i = W_i * h_prev + U_i * x_t + b_i;
+    const i_t = sigmoid(z_i);
+    
+    const z_c = W_c * h_prev + U_c * x_t + b_c;
+    const c_hat = tanh(z_c);
+    
+    const C_t = f_t * C_prev + i_t * c_hat;
+    
+    const z_o = W_o * h_prev + U_o * x_t + b_o;
+    const o_t = sigmoid(z_o);
+    
+    const h_t = o_t * tanh(C_t);
+    
+    return { f_t, i_t, c_hat, C_t, o_t, h_t, z_f, z_i, z_c, z_o };
+}
+
+function showPrevValuesUsage(index, substep, h_prev, C_prev, details) {
+    const panel = document.getElementById("prev-values-panel");
+    const content = document.getElementById("prev-values-content");
+    
+    if(substep === 0) {
+        panel.classList.remove('active');
+      return;
+    }
+    
+    panel.classList.add('active');
+    
+    let html = '';
+    const prevIndex = index > 1 ? index - 1 : 0;
+    
+    html += `<div class="prev-value-item">
+        <span class="label">hₜ₋₁ (h${prevIndex}):</span>
+        <span class="usage">${h_prev.toFixed(4)}</span>
+    </div>`;
+    
+    html += `<div class="prev-value-item">
+        <span class="label">Cₜ₋₁ (C${prevIndex}):</span>
+        <span class="usage">${C_prev.toFixed(4)}</span>
+    </div>`;
+    
+    html += `<div style="margin:15px 0;padding:10px;background:rgba(255,255,255,0.05);border-radius:8px;border-left:4px solid #ff6b6b;">`;
+    html += `<strong style="color:#ff6b6b;">Comment elles sont utilisées:</strong><br><br>`;
+    
+    if(substep >= 1) {
+        html += `• <strong>Forget Gate:</strong> h${prevIndex} multiplié par W_f (${W_f.toFixed(1)}) = <span style="color:#d9f99d;">${(W_f * h_prev).toFixed(4)}</span><br>`;
+        html += `  → Contribue à décider ce qu'on oublie du Cell State précédent<br>`;
+    }
+    if(substep >= 2) {
+        html += `• <strong>Input Gate:</strong> h${prevIndex} multiplié par W_i (${W_i.toFixed(1)}) = <span style="color:#d9f99d;">${(W_i * h_prev).toFixed(4)}</span><br>`;
+        html += `  → Contribue à décider quelle nouvelle info ajouter<br>`;
+    }
+    if(substep >= 3) {
+        html += `• <strong>Candidate:</strong> h${prevIndex} multiplié par W_c (${W_c.toFixed(1)}) = <span style="color:#d9f99d;">${(W_c * h_prev).toFixed(4)}</span><br>`;
+        html += `  → Contribue à créer les nouvelles valeurs candidates<br>`;
+    }
+    if(substep >= 4) {
+        html += `• <strong>Cell State:</strong> C${prevIndex} (${C_prev.toFixed(4)}) multiplié par f${index} (${details.f_t.toFixed(4)}) = <span style="color:#d9f99d;">${(details.f_t * C_prev).toFixed(4)}</span><br>`;
+        html += `  → <strong style="color:#ff6b6b;">Impact majeur:</strong> Le Cell State précédent est partiellement conservé selon la Forget Gate!<br>`;
+    }
+    if(substep >= 5) {
+        html += `• <strong>Output Gate:</strong> h${prevIndex} multiplié par W_o (${W_o.toFixed(1)}) = <span style="color:#d9f99d;">${(W_o * h_prev).toFixed(4)}</span><br>`;
+        html += `  → Contribue à décider quelle partie du Cell State exposer<br>`;
+    }
+    if(substep >= 6) {
+        html += `• <strong>Hidden State final:</strong> Basé sur le nouveau Cell State C${index}<br>`;
+        html += `  → Ce h${index} sera utilisé pour le prochain timestep (t+1)!<br>`;
+    }
+    
+    html += `</div>`;
+    
+    if(substep >= 4) {
+        html += `<div style="margin-top:10px;padding:10px;background:rgba(255,107,107,0.1);border-radius:8px;border:1px solid rgba(255,107,107,0.3);">`;
+        html += `<strong style="color:#ff6b6b;">💡 Mémoire LSTM:</strong> Le Cell State C${prevIndex} transporte l'information des timesteps précédents. La Forget Gate décide combien conserver (${(details.f_t * 100).toFixed(1)}%) et le reste est remplacé par de nouvelles valeurs.`;
+        html += `</div>`;
+    }
+    
+    content.innerHTML = html;
+}
+
+function showStepBreakdown(index, substep, x_val, h_prev, C_prev, details) {
+    const panel = document.getElementById("calculation-panel");
+    const content = document.getElementById("calculation-content");
+    panel.style.display = "block";
+    
+    let html = `<div class="calculation-step">`;
+    html += `<strong style="color:#7dd3fc;">Timestep ${index}:</strong><br><br>`;
+    
+    if(substep >= 1) {
+        html += `<span class="highlight">1. Forget Gate:</span> f${index} = σ(${W_f.toFixed(1)}×<span style="color:#ff6b6b;">${h_prev.toFixed(3)}</span> + ${U_f.toFixed(1)}×${x_val.toFixed(3)} + ${b_f.toFixed(1)}) = σ(${details.z_f.toFixed(4)}) = <span class="value">${details.f_t.toFixed(4)}</span><br>`;
+        html += `<span style="color:#ff6b6b;font-size:11px;">  ← Utilise h${index-1} du timestep précédent!</span><br>`;
+    }
+    if(substep >= 2) {
+        html += `<span class="highlight">2. Input Gate:</span> i${index} = σ(${W_i.toFixed(1)}×<span style="color:#ff6b6b;">${h_prev.toFixed(3)}</span> + ${U_i.toFixed(1)}×${x_val.toFixed(3)} + ${b_i.toFixed(1)}) = σ(${details.z_i.toFixed(4)}) = <span class="value">${details.i_t.toFixed(4)}</span><br>`;
+        html += `<span style="color:#ff6b6b;font-size:11px;">  ← Utilise h${index-1} du timestep précédent!</span><br>`;
+    }
+    if(substep >= 3) {
+        html += `<span class="highlight">3. Candidate:</span> ĉ${index} = tanh(${W_c.toFixed(1)}×<span style="color:#ff6b6b;">${h_prev.toFixed(3)}</span> + ${U_c.toFixed(1)}×${x_val.toFixed(3)} + ${b_c.toFixed(1)}) = tanh(${details.z_c.toFixed(4)}) = <span class="value">${details.c_hat.toFixed(4)}</span><br>`;
+        html += `<span style="color:#ff6b6b;font-size:11px;">  ← Utilise h${index-1} du timestep précédent!</span><br>`;
+    }
+    if(substep >= 4) {
+        html += `<span class="highlight">4. Cell State:</span> C${index} = ${details.f_t.toFixed(4)}×<span style="color:#ff6b6b;">${C_prev.toFixed(3)}</span> + ${details.i_t.toFixed(4)}×${details.c_hat.toFixed(4)} = <span class="value">${details.C_t.toFixed(4)}</span><br>`;
+        html += `<span style="color:#ff6b6b;font-size:11px;">  ← <strong>Utilise C${index-1} du timestep précédent!</strong> La mémoire est préservée!</span><br>`;
+    }
+    if(substep >= 5) {
+        html += `<span class="highlight">5. Output Gate:</span> o${index} = σ(${W_o.toFixed(1)}×<span style="color:#ff6b6b;">${h_prev.toFixed(3)}</span> + ${U_o.toFixed(1)}×${x_val.toFixed(3)} + ${b_o.toFixed(1)}) = σ(${details.z_o.toFixed(4)}) = <span class="value">${details.o_t.toFixed(4)}</span><br>`;
+        html += `<span style="color:#ff6b6b;font-size:11px;">  ← Utilise h${index-1} du timestep précédent!</span><br>`;
+    }
+    if(substep >= 6) {
+        html += `<span class="highlight">6. Hidden State:</span> h${index} = ${details.o_t.toFixed(4)} × tanh(${details.C_t.toFixed(4)}) = <span class="value">${details.h_t.toFixed(4)}</span><br>`;
+        html += `<span style="color:#7dd3fc;font-size:11px;">  → Ce h${index} sera utilisé comme hₜ₋₁ pour le prochain timestep!</span>`;
+    }
+    
+    html += `</div>`;
+    content.innerHTML = html;
+    
+    // Show previous values usage
+    showPrevValuesUsage(index, substep, h_prev, C_prev, details);
+}
+
+function showSubStep(index, substep, x_val, h_prev, C_prev, details) {
+    switch(substep) {
+        case 0:
+            updateElement(`x${index}`, x_val, true);
+            break;
+        case 1:
+        case 2:
+        case 3:
+        case 5:
+            // Highlight previous hidden state (h_t-1 is used in gates)
+            setTimeout(() => {
+                if(index > 1) {
+                    const prevH = document.getElementById(`h${index-1}`);
+                    if(prevH) {
+                        prevH.classList.add('highlight');
+                        setTimeout(() => {
+                            if(prevH) prevH.classList.remove('highlight');
+                        }, 3000);
+                    }
+                } else {
+                    const h0 = document.getElementById('h0');
+                    if(h0) {
+                        h0.classList.add('highlight');
+                        setTimeout(() => {
+                            if(h0) h0.classList.remove('highlight');
+                        }, 3000);
+                    }
+                }
+                // Show arrow from previous h to current gate
+                document.getElementById(`arrow-h${index}`)?.classList.add('active');
+            }, 100);
+            
+            if(substep === 1) {
+                updateElement(`f${index}`, details.f_t, true);
+            } else if(substep === 2) {
+                updateElement(`i${index}`, details.i_t, true);
+            } else if(substep === 3) {
+                updateElement(`c${index}`, details.c_hat, true);
+            } else if(substep === 5) {
+                updateElement(`o${index}`, details.o_t, true);
+            }
+            showStepBreakdown(index, substep, x_val, h_prev, C_prev, details);
+            break;
+        case 4:
+            // Highlight previous Cell State (C_t-1 is used in Cell State update)
+            setTimeout(() => {
+                if(index > 1) {
+                    const prevC = document.getElementById(`C${index-1}`);
+                    if(prevC) {
+                        prevC.classList.add('highlight');
+                        setTimeout(() => {
+                            if(prevC) prevC.classList.remove('highlight');
+                        }, 3000);
+                    }
+                } else {
+                    const C0 = document.getElementById('C0');
+                    if(C0) {
+                        C0.classList.add('highlight');
+                        setTimeout(() => {
+                            if(C0) C0.classList.remove('highlight');
+                        }, 3000);
+                    }
+                }
+                // Show arrow from previous C to current C
+                document.getElementById(`arrow-C${index}`)?.classList.add('active');
+            }, 100);
+            updateElement(`C${index}`, details.C_t, true);
+            showStepBreakdown(index, substep, x_val, h_prev, C_prev, details);
+            break;
+        case 6:
+            updateElement(`h${index}`, details.h_t, true);
+            showStepBreakdown(index, substep, x_val, h_prev, C_prev, details);
+            break;
+    }
+}
+
+
+function calculateAll() {
+    reset();
+    inputs = getInputs();
+    
+    let delay = 0;
+    inputs.forEach((x_t, idx) => {
+        const index = idx + 1;
+        const h_prev = hiddenStates[hiddenStates.length - 1];
+        const C_prev = cellStates[cellStates.length - 1];
+        const details = calculateLSTMStep(x_t, h_prev, C_prev);
+        
+        hiddenStates.push(details.h_t);
+        cellStates.push(details.C_t);
+        
+        for(let s = 0; s <= 6; s++) {
+            setTimeout(() => {
+                showSubStep(index, s, x_t, h_prev, C_prev, details);
+            }, delay);
+            delay += 500;
+        }
+    });
+    
+    setTimeout(() => {
+        document.getElementById("next-btn").disabled = true;
+        document.getElementById("next-btn").textContent = "✓ Terminé";
+        step = 4;
+        substep = 7;
+    }, delay);
+}
+
+// Generate LSTM cells HTML
+function generateLSTMCells() {
+    const container = document.getElementById('lstm-container');
+    let html = '';
+    
+    // Initial state
+    html += `
+    <div class="lstm-cell">
+        <div class="prev-states">
+            <div class="prev-state" id="h0">
+                <div class="label">h₀</div>
+                <div class="value">0.000</div>
+            </div>
+            <div class="prev-state" id="C0">
+                <div class="label">C₀</div>
+                <div class="value">0.000</div>
+            </div>
+        </div>
+    </div>`;
+    
+    // Generate 4 LSTM cells
+    for(let i = 1; i <= 4; i++) {
+        html += `
+        <div class="lstm-cell" id="cell${i}">
+            <div class="input-node inactive" id="x${i}">
+                <div class="label">x${i}</div>
+                <div class="value">-</div>
+            </div>
+            
+            <div class="gates-row">
+                <div class="gate gate-forget inactive" id="f${i}">
+                    <div class="label">f${i}</div>
+                    <div class="value">-</div>
+                </div>
+                <div class="gate gate-input inactive" id="i${i}">
+                    <div class="label">i${i}</div>
+                    <div class="value">-</div>
+                </div>
+                <div class="gate gate-candidate inactive" id="c${i}">
+                    <div class="label">ĉ${i}</div>
+                    <div class="value">-</div>
+                </div>
+                <div class="gate gate-output inactive" id="o${i}">
+                    <div class="label">o${i}</div>
+                    <div class="value">-</div>
+                </div>
+            </div>
+            
+            <div class="cell-state-box inactive" id="C${i}">
+                <div class="recurrent-arrow" id="arrow-C${i}" style="top:50%;left:-45px;"></div>
+                <div class="label">Cell State C${i}</div>
+                <div class="value">-</div>
+            </div>
+            
+            <div class="hidden-state-box inactive" id="h${i}">
+                <div class="recurrent-arrow" id="arrow-h${i}" style="top:50%;left:-45px;"></div>
+                <div class="label">h${i}</div>
+                <div class="value">-</div>
+            </div>
+        </div>`;
+    }
+    
+    container.innerHTML = html;
+}
+
+function next() {
+    if(substep === 0 && step < 4) {
+        inputs = getInputs();
+        const x_t = inputs[step];
+        const h_prev = hiddenStates[hiddenStates.length - 1];
+        const C_prev = cellStates[cellStates.length - 1];
+        currentDetails = calculateLSTMStep(x_t, h_prev, C_prev);
+        currentIndex = step + 1;
+    }
+    
+    if(step < 4) {
+        const x_t = inputs[step];
+        const h_prev = hiddenStates[hiddenStates.length - 1];
+        const C_prev = cellStates[cellStates.length - 1];
+        showSubStep(currentIndex, substep, x_t, h_prev, C_prev, currentDetails);
+        
+        substep++;
+        
+        if(substep > 6) {
+            hiddenStates.push(currentDetails.h_t);
+            cellStates.push(currentDetails.C_t);
+            step++;
+            substep = 0;
+        }
+        
+        if(step >= 4 && substep > 6) {
+            document.getElementById("next-btn").disabled = true;
+            document.getElementById("next-btn").textContent = "✓ Terminé";
+        }
+    }
+}
+
+// Keyboard navigation
+document.addEventListener('keydown', function(event) {
+    // Don't interfere with input fields
+    if(event.target.tagName === 'INPUT') return;
+    
+    if(event.key === 'ArrowRight' || event.key === 'ArrowDown') {
+        event.preventDefault();
+        next();
+    }
+});
+
+// Initialize
+generateLSTMCells();
+reset();
+</script>
+
+</body>
+</html>
